@@ -34,6 +34,8 @@ const WATCH_MAX_BACKOFF_MS = 30_000;
 
 export interface AppleContainerDriverOptions extends MountPolicy {
   cli?: Cli;
+  /** Apple network topology, resolved by the runtime registration. */
+  networkArgsFor?: (spec: SessionSpec) => string[];
 }
 
 interface AppleWatch {
@@ -57,6 +59,7 @@ export class AppleContainerSessionDriver implements SessionDriver {
   readonly kind = 'apple-container' as const;
   readonly #cli: Cli;
   readonly #policy: MountPolicy;
+  readonly #networkArgs: ((spec: SessionSpec) => string[]) | undefined;
   readonly #watches = new Map<string, AppleWatch>();
   readonly #knownKeys = new Map<string, Map<string, SessionKey>>();
   readonly #listed = new Map<string, Set<string>>();
@@ -64,6 +67,7 @@ export class AppleContainerSessionDriver implements SessionDriver {
   constructor(opts: AppleContainerDriverOptions) {
     this.#cli = opts.cli ?? realCli('container');
     this.#policy = opts;
+    this.#networkArgs = opts.networkArgsFor;
   }
 
   capabilities(): DriverCapabilities {
@@ -114,6 +118,7 @@ export class AppleContainerSessionDriver implements SessionDriver {
     args.push(...envArgs(agent.env));
     args.push(...envArgs(agent.contributedEnv ?? {}));
     args.push(...mountArgs(agent.mounts));
+    args.push(...(this.#networkArgsFor(spec) ?? []));
     if (agent.command && agent.command.length > 0) {
       args.push('--entrypoint', agent.command[0], agent.image, ...agent.command.slice(1), ...(agent.args ?? []));
     } else {
@@ -131,6 +136,11 @@ export class AppleContainerSessionDriver implements SessionDriver {
       throw normalizeAppleContainerError(error);
     }
     return new AppleContainerHandle(spec.key, name, this.#cli, spec, this.#emit);
+  }
+
+  #networkArgsFor(spec: SessionSpec): string[] {
+    if (spec.network === 'none') return [];
+    return this.#networkArgs?.(spec) ?? [];
   }
 
   async listSessions(installSlug: string): Promise<SessionSnapshot[]> {

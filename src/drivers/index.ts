@@ -40,7 +40,7 @@ import os from 'os';
 import path from 'path';
 
 import { DATA_DIR, GROUPS_DIR } from '../config.js';
-import { EGRESS_NETWORK, egressNetworkArgs, ensureEgressNetwork } from '../egress-lockdown.js';
+import { EGRESS_NETWORK, appleNetworkArgs, egressNetworkArgs, ensureEgressNetwork } from '../egress-lockdown.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
 
@@ -88,7 +88,12 @@ registerSessionDriver(
   DEFAULT_DRIVER_KIND,
   (policy) => new DockerSessionDriver({ ...policy, networkArgsFor: dockerNetworkArgs }),
 );
-registerSessionDriver('apple-container', (policy) => new AppleContainerSessionDriver(policy));
+registerSessionDriver('apple-container', (policy) =>
+  new AppleContainerSessionDriver({
+    ...policy,
+    networkArgsFor: () => appleNetworkArgs(),
+  }),
+);
 
 export function configuredDriverKind(env: NodeJS.ProcessEnv = process.env): DriverKind {
   return (

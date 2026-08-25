@@ -10,6 +10,7 @@ import {
 import { FakeCli } from './fake-cli.js';
 import { FIXTURE_POLICY, fixtureSpec } from './spec-fixture.js';
 import { LABELS, type SessionEvent } from './types.js';
+import { appleNetworkGateway, appleNetworkIsInternal } from '../egress-lockdown.js';
 
 vi.mock('../log.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), fatal: vi.fn() },
@@ -25,6 +26,19 @@ let cli: FakeCli;
 
 function driver(): AppleContainerSessionDriver {
   return new AppleContainerSessionDriver({ ...FIXTURE_POLICY, cli });
+}
+
+function networkDriver(): AppleContainerSessionDriver {
+  return new AppleContainerSessionDriver({
+    ...FIXTURE_POLICY,
+    cli,
+    networkArgsFor: () => [
+      '--network',
+      'nanoclaw-egress',
+      '--mount',
+      'type=bind,source=/tmp/hosts,target=/etc/hosts,readonly',
+    ],
+  });
 }
 
 function createArgs(): string[] {
@@ -60,6 +74,15 @@ describe('Apple Container argv', () => {
     expect(cli.bin).toBe('container');
   });
 
+  it('uses the injected network seam without invoking Docker', async () => {
+    await networkDriver().prepare(fixtureSpec());
+    const args = createArgs();
+    expect(args).toContain('--network');
+    expect(args).toContain('nanoclaw-egress');
+    expect(args).toContain('type=bind,source=/tmp/hosts,target=/etc/hosts,readonly');
+    expect(cli.calls.some((call) => call.args[0] === 'network' && cli.bin === 'docker')).toBe(false);
+  });
+
   it('refuses a missing mount source before create', async () => {
     vi.mocked(fs.existsSync).mockReturnValueOnce(false);
     await expect(driver().prepare(fixtureSpec())).rejects.toMatchObject({ kind: 'spec-invalid', retryable: false });
@@ -91,6 +114,18 @@ describe('runtime-unavailable', () => {
 });
 
 describe('JSON parse', () => {
+  it('extracts the IPv4 gateway from Apple network inspect JSON', () => {
+    expect(
+      appleNetworkGateway(JSON.stringify({ configuration: { ipv4Gateway: '192.168.64.1', subnet: '192.168.64.0/24' } })),
+    ).toBe('192.168.64.1');
+    expect(appleNetworkGateway('{"gateway":"not-an-ip"}')).toBeNull();
+  });
+  it('requires an explicit internal or host-only marker in Apple network inspect JSON', () => {
+    expect(appleNetworkIsInternal(JSON.stringify({ configuration: { ipv4Gateway: '192.168.64.1' } }))).toBe(false);
+    expect(appleNetworkIsInternal(JSON.stringify({ configuration: { internal: true } }))).toBe(true);
+    expect(appleNetworkIsInternal(JSON.stringify({ configuration: { mode: 'host-only' } }))).toBe(true);
+    expect(appleNetworkIsInternal(JSON.stringify({ configuration: { internal: 'true' } }))).toBe(false);
+  });
   it('reads labels and name from configuration-shaped inspect/list documents', () => {
     const records = parseContainerRecords(
       JSON.stringify([

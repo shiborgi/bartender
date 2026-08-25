@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { verifyGatewayV1 } from './onecli.js';
+import { hostNativeOnecliStatus, verifyGatewayV1 } from './onecli.js';
 
 function fakeFetch(behavior: 'ok' | '404' | 'down'): typeof fetch {
   return (async () => {
@@ -25,5 +25,12 @@ describe('verifyGatewayV1', () => {
   });
   it('unreachable on connection failure', async () => {
     expect(await verifyGatewayV1('http://x', fakeFetch('down'))).toBe('unreachable');
+  });
+});
+
+describe('Apple host-native OneCLI setup', () => {
+  it('does not report success when health polling fails', () => {
+    expect(hostNativeOnecliStatus(false)).toBe('failed');
+    expect(hostNativeOnecliStatus(true)).toBe('success');
   });
 });

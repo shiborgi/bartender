@@ -17,6 +17,7 @@ import os from 'os';
 import path from 'path';
 
 import { log } from '../src/log.js';
+import { configuredDriverKind } from '../src/drivers/index.js';
 import { readVersionPin } from './lib/version-pins.js';
 import { emitStatus } from './status.js';
 
@@ -167,6 +168,62 @@ function installOnecli(): { stdout: string; ok: boolean } {
     return { stdout, ok: false };
   }
   return { stdout, ok: true };
+}
+
+export function hostNativeOnecliStatus(healthy: boolean): 'failed' | 'success' {
+  return healthy ? 'success' : 'failed';
+}
+
+/** Apple Container agents use a host-native gateway; Docker Compose is not a dependency. */
+async function installHostNativeOnecli(): Promise<void> {
+  const cli = installOnecliCliDirect();
+  if (!cli.ok || !onecliVersion()) {
+    emitStatus('ONECLI', {
+      INSTALLED: false,
+      STATUS: 'failed',
+      ERROR: 'cli_install_failed',
+      HINT: 'CLI binary install failed. Make sure curl is installed and ~/.local/bin is writable.',
+      LOG: 'logs/setup.log',
+    });
+    process.exit(1);
+  }
+
+  const url = getOnecliApiHost();
+  if (!url) {
+    emitStatus('ONECLI', {
+      INSTALLED: true,
+      STATUS: 'failed',
+      ERROR: 'onecli_host_gateway_not_configured',
+      HINT: 'Start a host-native OneCLI gateway, then configure it with `onecli config set api-host <url>`, or use --remote-url.',
+      LOG: 'logs/setup.log',
+    });
+    process.exit(1);
+  }
+  writeEnvOnecliUrl(url);
+  log.info('Using host-native OneCLI for Apple Container', { url });
+  const healthy = await pollHealth(url, 15000);
+  if (!healthy) {
+    emitStatus('ONECLI', {
+      INSTALLED: true,
+      HOST_NATIVE: true,
+      ONECLI_URL: url,
+      HEALTHY: false,
+      STATUS: 'failed',
+      ERROR: 'health_check_failed',
+      LOG: 'logs/setup.log',
+    });
+    process.exit(1);
+  }
+  const v1Hint = healthy ? gatewayV1Hint(await verifyGatewayV1(url)) : null;
+  emitStatus('ONECLI', {
+    INSTALLED: true,
+    HOST_NATIVE: true,
+    ONECLI_URL: url,
+    HEALTHY: healthy,
+    STATUS: hostNativeOnecliStatus(healthy),
+    ...(v1Hint ? { GATEWAY_HINT: v1Hint } : {}),
+    LOG: 'logs/setup.log',
+  });
 }
 
 function runInstall(cmd: string): { stdout: string; stderr?: string; ok: boolean } {
@@ -391,6 +448,11 @@ export async function run(args: string[]): Promise<void> {
       ...(v1Hint ? { GATEWAY_HINT: v1Hint } : {}),
       LOG: 'logs/setup.log',
     });
+    return;
+  }
+
+  if (configuredDriverKind() === 'apple-container') {
+    await installHostNativeOnecli();
     return;
   }
 
