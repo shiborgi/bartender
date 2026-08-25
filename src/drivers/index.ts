@@ -2,12 +2,12 @@
  * Driver selection.
  *
  * `NANOCLAW_RUNTIME_DRIVER` is read once, at first use, and defaults to
- * `docker` — so an install that never sets it behaves exactly as it did before
- * the seam existed. Nothing above this module may branch on the driver's
- * identity: features gate on `capabilities()`, never on `kind`.
+ * `apple-container` on Apple Silicon macOS and `docker` everywhere else.
+ * Nothing above this module may branch on the driver's identity: features gate
+ * on `capabilities()`, never on `kind`.
  *
  * Selection is a registry, not a switch. Drivers self-register by kind; this
- * module pre-registers `docker`, the only realization that ships here. An
+ * module pre-registers `docker` and `apple-container`. An
  * overlay adds its own with one `registerSessionDriver(...)` call and one
  * appended import — the same shape as the provider container-config barrel
  * (`src/providers/index.ts`) and the session-egress factory. Nothing outside
@@ -44,6 +44,7 @@ import { EGRESS_NETWORK, egressNetworkArgs, ensureEgressNetwork } from '../egres
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
 
+import { AppleContainerSessionDriver } from './apple-container-driver.js';
 import { DockerSessionDriver, agentContainerName } from './docker-driver.js';
 import {
   getSessionDriverFactory,
@@ -87,9 +88,13 @@ registerSessionDriver(
   DEFAULT_DRIVER_KIND,
   (policy) => new DockerSessionDriver({ ...policy, networkArgsFor: dockerNetworkArgs }),
 );
+registerSessionDriver('apple-container', (policy) => new AppleContainerSessionDriver(policy));
 
 export function configuredDriverKind(env: NodeJS.ProcessEnv = process.env): DriverKind {
-  return readSetting('NANOCLAW_RUNTIME_DRIVER', env).toLowerCase() || DEFAULT_DRIVER_KIND;
+  return (
+    readSetting('NANOCLAW_RUNTIME_DRIVER', env).toLowerCase() ||
+    (os.platform() === 'darwin' && os.arch() === 'arm64' ? 'apple-container' : DEFAULT_DRIVER_KIND)
+  );
 }
 
 /**

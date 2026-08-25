@@ -79,7 +79,15 @@ afterEach(() => {
 });
 
 describe('configuredDriverKind', () => {
-  it('defaults to docker when nothing is set anywhere', () => {
+  it('defaults to apple-container on Apple Silicon macOS', () => {
+    vi.spyOn(os, 'platform').mockReturnValue('darwin');
+    vi.spyOn(os, 'arch').mockReturnValue('arm64');
+    expect(configuredDriverKind({})).toBe('apple-container');
+  });
+
+  it('defaults to docker outside Apple Silicon macOS', () => {
+    vi.spyOn(os, 'platform').mockReturnValue('linux');
+    vi.spyOn(os, 'arch').mockReturnValue('x64');
     expect(configuredDriverKind({})).toBe('docker');
   });
 
@@ -104,6 +112,15 @@ describe('configuredDriverKind', () => {
 describe('createSessionDriver', () => {
   it('builds the docker driver by default, and it is pre-registered', () => {
     expect(listSessionDriverKinds()).toContain('docker');
+    expect(createSessionDriver('docker').kind).toBe('docker');
+  });
+
+  it('builds the registered Apple Container driver and preserves the Docker override', () => {
+    expect(listSessionDriverKinds()).toContain('apple-container');
+    expect(createSessionDriver('apple-container').kind).toBe('apple-container');
+    vi.spyOn(os, 'platform').mockReturnValue('darwin');
+    vi.spyOn(os, 'arch').mockReturnValue('arm64');
+    expect(configuredDriverKind({ NANOCLAW_RUNTIME_DRIVER: 'docker' })).toBe('docker');
     expect(createSessionDriver('docker').kind).toBe('docker');
   });
 
@@ -179,13 +196,26 @@ describe('getSessionDriver', () => {
     }
   });
 
+  it('returns the apple-container realization on darwin/arm64 when unset', () => {
+    vi.spyOn(os, 'platform').mockReturnValue('darwin');
+    vi.spyOn(os, 'arch').mockReturnValue('arm64');
+    delete process.env.NANOCLAW_RUNTIME_DRIVER;
+    resetSessionDriver(null);
+    expect(getSessionDriver().kind).toBe('apple-container');
+  });
+
   it('honours the reset seam so a suite can install its own driver', () => {
     const { kind } = registerFake();
     const standIn = createSessionDriver(kind);
     resetSessionDriver(standIn);
     expect(getSessionDriver()).toBe(standIn);
     resetSessionDriver(null);
-    expect(getSessionDriver().kind).toBe('docker');
+    expect(getSessionDriver().kind).toBe(configuredDriverKind());
+  });
+
+  it('does not import container-runtime for kind selection', () => {
+    const src = fs.readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/container-runtime/);
   });
 });
 

@@ -7,20 +7,27 @@
  * `if (driver === 'x')` above this seam is the thing this file exists to make
  * unnecessary.
  *
- * Only the Docker driver ships in this tree, so the harness list has one
- * entry; an out-of-tree driver adds its own harness and must pass every case
- * unchanged. The suite asserts spec-realization fidelity (including *absence*:
+ * The harness table is the only place a test may differ by driver identity.
+ * The suite asserts spec-realization fidelity (including *absence*:
  * no secret env, no extra mounts), the mount-class rules, prepare idempotency,
  * adoption from labels alone, stop-is-full-teardown, and failure-taxonomy
  * mapping.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppleContainerSessionDriver } from './apple-container-driver.js';
 import { DockerSessionDriver } from './docker-driver.js';
 import { FakeCli } from './fake-cli.js';
 import { withSessionEvents, type SessionEventsDriver } from './session-events.js';
 import { FIXTURE_POLICY, fixtureSpec, fixtureSpecWithAux } from './spec-fixture.js';
-import { GROUP_FOLDER_LABEL, LABELS, validateSpec, type DriverCapabilities, type SessionSpec } from './types.js';
+import {
+  GROUP_FOLDER_LABEL,
+  LABELS,
+  validateSpec,
+  type DriverCapabilities,
+  type SessionResources,
+  type SessionSpec,
+} from './types.js';
 
 vi.mock('../log.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), fatal: vi.fn() },
@@ -45,14 +52,53 @@ interface Realized {
   labels: Record<string, string>;
 }
 
+type ListedAgent = { name: string; state: string; group: string; session: string };
+
 type Harness = {
   name: string;
+  expectedUnrealized: readonly (keyof SessionResources)[];
   driver: SessionEventsDriver;
   cli: FakeCli;
   realize(spec: SessionSpec): Promise<Realized>;
   /** Make the next realization fail with a runtime message of the given shape. */
   failWith(message: string): void;
+  inspectExisting(install?: string, group?: string, session?: string): void;
+  listAgents(rows: ListedAgent[]): void;
 };
+
+function parseCreate(create: string[]): Realized {
+  const env: Record<string, string> = {};
+  const mounts: Realized['containers'][number]['mounts'] = [];
+  const labels: Record<string, string> = {};
+  for (let i = 0; i < create.length; i++) {
+    if (create[i] === '-e') {
+      const eq = create[i + 1].indexOf('=');
+      env[create[i + 1].slice(0, eq)] = create[i + 1].slice(eq + 1);
+    }
+    if (create[i] === '-v') {
+      const parts = create[i + 1].split(':');
+      mounts.push({ hostPath: parts[0], containerPath: parts[1], ro: parts[2] === 'ro' });
+    }
+    if (create[i] === '--mount') {
+      const fields = Object.fromEntries(
+        create[i + 1].split(',').map((field) => {
+          const eq = field.indexOf('=');
+          return eq === -1 ? [field, 'true'] : [field.slice(0, eq), field.slice(eq + 1)];
+        }),
+      );
+      mounts.push({
+        hostPath: fields.source,
+        containerPath: fields.target,
+        ro: fields.readonly === 'true' || 'readonly' in fields,
+      });
+    }
+    if (create[i] === '--label') {
+      const eq = create[i + 1].indexOf('=');
+      labels[create[i + 1].slice(0, eq)] = create[i + 1].slice(eq + 1);
+    }
+  }
+  return { containers: [{ role: 'agent', image: '', env, mounts }], labels };
+}
 
 function dockerHarness(): Harness {
   const cli = new FakeCli('docker');
@@ -63,38 +109,91 @@ function dockerHarness(): Harness {
   const driver = withSessionEvents(new DockerSessionDriver({ ...FIXTURE_POLICY, cli }));
   return {
     name: 'docker',
+    expectedUnrealized: [],
     driver,
     cli,
     async realize(spec) {
       await driver.prepare(spec);
-      // The Docker realization refuses specs carrying auxiliary containers
-      // (capabilities().auxiliaryContainers is false), so the one create per
-      // prepare IS the whole session; read back what it emitted.
-      const create = cli.callMatching(/^create /)!.args;
-      const env: Record<string, string> = {};
-      const mounts: Realized['containers'][number]['mounts'] = [];
-      const labels: Record<string, string> = {};
-      for (let i = 0; i < create.length; i++) {
-        if (create[i] === '-e') {
-          const eq = create[i + 1].indexOf('=');
-          env[create[i + 1].slice(0, eq)] = create[i + 1].slice(eq + 1);
-        }
-        if (create[i] === '-v') {
-          const parts = create[i + 1].split(':');
-          mounts.push({ hostPath: parts[0], containerPath: parts[1], ro: parts[2] === 'ro' });
-        }
-        if (create[i] === '--label') {
-          const eq = create[i + 1].indexOf('=');
-          labels[create[i + 1].slice(0, eq)] = create[i + 1].slice(eq + 1);
-        }
-      }
+      const realized = parseCreate(cli.callMatching(/^create /)!.args);
       const agent = spec.containers.find((c) => c.role === 'agent')!;
-      return { containers: [{ role: 'agent', image: agent.image, env, mounts }], labels };
+      realized.containers[0].image = agent.image;
+      return realized;
     },
     failWith(message) {
       cli.responses = [
         { match: /^inspect /, throws: new Error('No such object') },
         { match: /^create /, throws: new Error(message) },
+      ];
+    },
+    inspectExisting(install = 'spike', group = 'g1', session = 's1') {
+      cli.responses = [{ match: /^inspect /, output: `${install}|${group}|${session}\n` }];
+    },
+    listAgents(rows) {
+      cli.responses = [
+        {
+          match: /^ps -a/,
+          output: rows.map((row) => `${row.name}|${row.state}|${row.group}|${row.session}`).join('\n') + '\n',
+        },
+      ];
+    },
+  };
+}
+
+function appleContainerHarness(): Harness {
+  const cli = new FakeCli('container');
+  cli.responses = [{ match: /^inspect /, output: '[]' }];
+  const driver = withSessionEvents(new AppleContainerSessionDriver({ ...FIXTURE_POLICY, cli }));
+  return {
+    name: 'apple-container',
+    expectedUnrealized: ['pidsLimit'],
+    driver,
+    cli,
+    async realize(spec) {
+      await driver.prepare(spec);
+      const realized = parseCreate(cli.callMatching(/^create /)!.args);
+      const agent = spec.containers.find((c) => c.role === 'agent')!;
+      realized.containers[0].image = agent.image;
+      return realized;
+    },
+    failWith(message) {
+      cli.responses = [
+        { match: /^inspect /, output: '[]' },
+        { match: /^create /, throws: new Error(message) },
+      ];
+    },
+    inspectExisting(install = 'spike', group = 'g1', session = 's1') {
+      cli.responses = [
+        {
+          match: /^inspect /,
+          output: JSON.stringify([
+            {
+              labels: {
+                [LABELS.install]: install,
+                [LABELS.group]: group,
+                [LABELS.session]: session,
+              },
+            },
+          ]),
+        },
+      ];
+    },
+    listAgents(rows) {
+      cli.responses = [
+        {
+          match: /^list /,
+          output: JSON.stringify(
+            rows.map((row) => ({
+              name: row.name,
+              status: row.state,
+              labels: {
+                [LABELS.install]: 'spike',
+                [LABELS.group]: row.group,
+                [LABELS.session]: row.session,
+                [LABELS.role]: 'agent',
+              },
+            })),
+          ),
+        },
       ];
     },
   };
@@ -103,7 +202,7 @@ function dockerHarness(): Harness {
 let harnesses: Harness[];
 beforeEach(() => {
   vi.clearAllMocks();
-  harnesses = [dockerHarness()];
+  harnesses = [dockerHarness(), appleContainerHarness()];
 });
 
 /**
@@ -608,7 +707,7 @@ describe('conformance: failure taxonomy', () => {
   });
 
   eachDriver('maps an unreachable runtime to runtime-unavailable', async (h) => {
-    h.failWith('Cannot connect to the Docker daemon');
+    h.failWith('daemon is not running');
     await expect(h.driver.prepare(fixtureSpec())).rejects.toMatchObject({
       kind: 'runtime-unavailable',
       retryable: true,
@@ -625,7 +724,7 @@ describe('conformance: lifecycle', () => {
   eachDriver('prepare is idempotent on key', async (h) => {
     // An existing live session for this key IS the session — this is also how
     // adoption works.
-    h.cli.responses = [{ match: /^inspect /, output: 'spike|g1|s1\n' }];
+    h.inspectExisting();
 
     const first = await h.driver.prepare(fixtureSpec());
     const second = await h.driver.prepare(fixtureSpec());
@@ -673,7 +772,7 @@ describe('conformance: lifecycle', () => {
   });
 
   eachDriver('reconstructs adopted handles from labels alone', async (h) => {
-    h.cli.responses = [{ match: /^ps -a/, output: 'ncl-spike-s1|running|g1|s1\n' }];
+    h.listAgents([{ name: 'ncl-spike-s1', state: 'running', group: 'g1', session: 's1' }]);
 
     const snapshots = await h.driver.listSessions('spike');
 
@@ -686,12 +785,11 @@ describe('conformance: lifecycle', () => {
     // Fix 2's pinned behavior: adoption must tell adoptable sessions from
     // corpses (and from prepared-not-started incarnations) WITHOUT a
     // per-handle status() round trip.
-    h.cli.responses = [
-      {
-        match: /^ps -a/,
-        output: 'ncl-spike-s1|running|g1|s1\nncl-spike-s2|exited|g2|s2\nncl-spike-s3|created|g3|s3\n',
-      },
-    ];
+    h.listAgents([
+      { name: 'ncl-spike-s1', state: 'running', group: 'g1', session: 's1' },
+      { name: 'ncl-spike-s2', state: 'exited', group: 'g2', session: 's2' },
+      { name: 'ncl-spike-s3', state: 'created', group: 'g3', session: 's3' },
+    ]);
 
     const snapshots = await h.driver.listSessions('spike');
 
@@ -728,7 +826,7 @@ describe('conformance: capabilities are honest', () => {
   eachDriver('declares what it cannot realize', (h) => {
     const capabilities = h.driver.capabilities();
     expect(capabilities.isolationTiers).toContain('container');
-    expect(capabilities.unrealized).toEqual([]);
+    expect(capabilities.unrealized).toEqual(h.expectedUnrealized);
     expect(capabilities.admissionEnforced).toBe(false);
     expect(capabilities.networkPolicy).toBe('topology');
     expect(capabilities.sharedNetworkNamespace).toBe(false);
