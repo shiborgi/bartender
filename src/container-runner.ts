@@ -426,13 +426,13 @@ export async function adoptRunningSessions(): Promise<{ adopted: number; stopped
 /**
  * Resolve the provider name for a session:
  *
- *   sessions.agent_provider → container_configs.provider → 'claude'
+ *   sessions.agent_provider → container_configs.provider → 'opencode'
  */
 export function resolveProviderName(
   sessionProvider: string | null | undefined,
   containerConfigProvider: string | null | undefined,
 ): string {
-  return (sessionProvider || containerConfigProvider || 'claude').toLowerCase();
+  return (sessionProvider || containerConfigProvider || 'opencode').toLowerCase();
 }
 
 async function resolveProviderContribution(
