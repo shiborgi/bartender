@@ -23,11 +23,11 @@ unprivileged access gate).
 
 ### 1. Container Isolation (Primary Boundary)
 
-Agents execute in containers (Docker), providing:
+Agents execute in the selected container runtime (Apple Container on Apple Silicon macOS by default, or Docker), providing:
 - **Process isolation** — container processes cannot affect the host
 - **Filesystem isolation** — only explicitly mounted directories are visible
 - **Non-root execution** — runs as an unprivileged user (`node`, uid 1000, or the host uid remapped in)
-- **Per-session containers** — one long-lived container per session polls that session's DBs and handles many messages, then is torn down (`--rm`) when the session goes idle.
+- **Per-session containers** — one long-lived container per session polls that session's DBs and handles many messages, then is torn down with the runtime's remove flag (`--rm`) when the session goes idle.
 
 This is the primary security boundary. Rather than relying on application-level
 permission checks, the attack surface is limited by what's mounted.
@@ -35,7 +35,7 @@ permission checks, the attack surface is limited by what's mounted.
 ### 2. Mount Security
 
 `buildMounts` (`src/container-runner.ts`) composes a fixed set of mounts per
-spawn. For the default (Claude) provider these are:
+spawn. For the default (Claude) provider these are the same across the supported drivers:
 
 | Container path | Host source | Mode | Purpose |
 |---|---|---|---|
@@ -131,26 +131,26 @@ ignores it (or a raw socket) could reach the internet directly and bypass
 credential injection, approvals, and audit. Egress lockdown closes that hole at
 the network layer.
 
-**How it works:** agents are placed on a Docker `--internal` network
-(`nanoclaw-egress`) that has **no route to the internet**. The OneCLI gateway
-container is attached to that network, aliased as `host.docker.internal`, so the
-injected proxy URL (`…@host.docker.internal:10255`) resolves to the gateway
-*container-to-container*. The gateway is therefore the **only reachable hop** —
-anything else has nowhere to go. The agent is non-root with no `NET_ADMIN`, so
-it cannot undo this. Identical mechanism on macOS and Linux (no host firewall,
-no `host-gateway` route).
+**How it works:** agents are placed on a runtime-managed internal/host-only
+network (`nanoclaw-egress`) that has **no route to the internet**. With Docker,
+the network is created with `--internal` and the OneCLI gateway container is
+attached and aliased as `host.docker.internal`. With Apple Container, the
+runtime's internal network is created and the gateway address is supplied in the
+container's hosts file. In both cases the gateway is the **only reachable hop**
+for proxy traffic; anything else has nowhere to go. The agent is non-root with
+no `NET_ADMIN`, so it cannot undo this.
 
-- **Self-healing:** the gateway is re-attached to the network at every spawn and
-  on each host-sweep tick, so an out-of-band detach (e.g. `docker compose up` on
-  the OneCLI stack — its compose lives in `~/.onecli`, not this repo) recovers
-  automatically.
-- **Fail-fast:** if lockdown is on but the network can't be created or the
-  gateway can't be attached (e.g. a non-standard gateway container name, or the
-  gateway isn't running), nanoclaw **refuses to spawn the agent** and surfaces a
+- **Self-healing:** Docker gateway attachment is restored at every spawn and on
+  each host-sweep tick, so an out-of-band detach (e.g. `docker compose up` on the
+  OneCLI stack — its compose lives in `~/.onecli`, not this repo) recovers
+  automatically. Apple Container validates or recreates its internal network at
+  spawn time.
+- **Fail-fast:** if lockdown is on but the selected runtime cannot create or
+  validate the network, nanoclaw **refuses to spawn the agent** and surfaces a
   clear error — it never silently falls back to open egress. Fix the cause (or
-  set `NANOCLAW_EGRESS_LOCKDOWN=false`) and retry. The host-sweep re-heal is the
-  exception: a heal failure there is logged but not fatal, since already-running
-  agents stay on the internal net (no leak) until the gateway returns.
+  set `NANOCLAW_EGRESS_LOCKDOWN=false`) and retry. A host-sweep Docker heal
+  failure is logged but not fatal, since already-running agents stay on the
+  internal net (no leak) until the gateway returns.
 
 **Default: egress is open.** Lockdown is **off** unless you opt in; by default
 the agent reaches the OneCLI gateway over the host-gateway path and outbound
@@ -162,7 +162,7 @@ traffic is not confined to the internal network.
 | --- | --- | --- |
 | `NANOCLAW_EGRESS_LOCKDOWN` | `false` | Set `true` to opt in (otherwise the host-gateway path is used). |
 | `NANOCLAW_EGRESS_NETWORK` | `nanoclaw-egress` | Network name. |
-| `ONECLI_GATEWAY_CONTAINER` | `onecli` | Gateway container to attach. |
+| `ONECLI_GATEWAY_CONTAINER` | `onecli` | Docker gateway container to attach. |
 
 These variables are read from the **host process** environment (the service's
 environment / `.env`), not from inside the container. The agent container is

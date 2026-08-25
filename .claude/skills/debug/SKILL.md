@@ -270,6 +270,11 @@ rm -rf data/v2-sessions/<group>/<session>/
 
 ## Quick Diagnostic Script
 
+The commands below use Docker for illustration. Check `NANOCLAW_RUNTIME_DRIVER`
+first; when Apple Container is selected, inspect the corresponding `container`
+objects with `container system status`, `container ps`, and `container image ls`
+instead of Docker objects.
+
 ```bash
 echo "=== Checking NanoClaw v2 Setup ==="
 

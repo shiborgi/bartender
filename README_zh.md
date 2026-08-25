@@ -32,7 +32,7 @@ cd nanoclaw-v2
 bash nanoclaw.sh
 ```
 
-`nanoclaw.sh` 会把您从一台全新机器一直带到一个可以直接发消息的命名智能体。它会在缺失时安装 Node、pnpm 和 Docker，向 OneCLI 注册您的 Anthropic 凭据，构建智能体容器，并配对您的第一个渠道（Telegram、Discord、WhatsApp 或本地 CLI）。如果某一步失败，会自动调用 Claude Code 进行诊断并从中断处继续。
+`nanoclaw.sh` 会把您从一台全新机器一直带到一个可以直接发消息的命名智能体。在 Apple Silicon macOS 上，Apple Container 是默认运行时；请使用 `container system start` 启动它。Linux 使用 Docker；如要在 macOS 上明确选择 Docker，请设置 `NANOCLAW_RUNTIME_DRIVER=docker`。脚本会在缺失时安装 Node 和 pnpm，向 OneCLI 注册您的 Anthropic 凭据，构建智能体容器，并配对您的第一个渠道（Telegram、Discord、WhatsApp 或本地 CLI）。如果某一步失败，会自动调用 Claude Code 进行诊断并从中断处继续。
 
 ## 设计哲学
 
@@ -57,7 +57,7 @@ bash nanoclaw.sh
 - **每个智能体的独立工作区** — 每个智能体组都有自己的 `CLAUDE.md`、自己的记忆、自己的容器，以及您允许的挂载点。除非您明确接线，否则不会有东西越过边界。
 - **计划任务** — 运行 Claude 的周期性作业，可以给您回发消息。
 - **网络访问** — 搜索和抓取网页内容。
-- **容器隔离** — 智能体在 Docker（macOS/Linux/WSL2）中沙箱化运行，可选 [Docker Sandboxes](docs/docker-sandboxes.md) 的微虚拟机隔离，或在 macOS 上选用 Apple Container 作为原生运行时。
+- **容器隔离** — 智能体在 Apple Silicon macOS 上默认使用 Apple Container，在 Linux、macOS 和 WSL2 上使用 Docker 进行沙箱化运行；也可选 [Docker Sandboxes](docs/docker-sandboxes.md) 的微虚拟机隔离。
 - **凭据安全** — 智能体不持有原始 API key。出站请求经由 [OneCLI 的 Agent Vault](https://github.com/onecli/onecli)，在请求时注入凭据，并按每个智能体执行策略和速率限制。
 
 ## 使用方法
@@ -109,7 +109,7 @@ NanoClaw 不用配置文件。想改就直接告诉 Claude Code：
 
 - macOS 或 Linux（Windows 通过 WSL2）
 - Node.js 22+ 和 pnpm 10+（安装脚本会在缺失时自动安装）
-- [Docker Desktop](https://docker.com/products/docker-desktop)（macOS/Windows）或 Docker Engine（Linux）
+- Apple Silicon macOS 使用 Apple Container（`container system start`）；Linux 使用 Docker Engine。在 macOS/Windows 上使用 Docker Desktop 时，请设置 `NANOCLAW_RUNTIME_DRIVER=docker`。
 - [Claude Code](https://claude.ai/download)，用于 `/customize`、`/debug`、安装过程中的错误恢复以及所有 `/add-<channel>` 技能
 
 ## 架构
@@ -139,13 +139,13 @@ NanoClaw 不用配置文件。想改就直接告诉 Claude Code：
 
 ## FAQ
 
-**为什么用 Docker？**
+**为什么使用这些容器运行时？**
 
-Docker 提供跨平台支持（macOS、Linux、Windows via WSL2）和成熟的生态。在 macOS 上，您可以选择通过 `/convert-to-apple-container` 切换到 Apple Container，以获得更轻量的原生运行时。如需更强隔离，[Docker Sandboxes](docs/docker-sandboxes.md) 会把每个容器放到一台微虚拟机里运行。
+Apple Container 是 Apple Silicon macOS 上的默认运行时，提供更轻量的原生体验。Docker 在 Linux、macOS 和 WSL2 上提供成熟的跨平台支持。要明确选择 Docker，请设置 `NANOCLAW_RUNTIME_DRIVER=docker`。如需更强隔离，[Docker Sandboxes](docs/docker-sandboxes.md) 会把每个容器放到一台微虚拟机里运行。
 
 **我可以在 Linux 或 Windows 上运行吗？**
 
-可以。Docker 是默认运行时，可在 macOS、Linux 以及 Windows（通过 WSL2）上工作。运行 `bash nanoclaw.sh` 就行。
+可以。Apple Silicon macOS 默认使用 Apple Container，请在设置前运行 `container system start`。Linux 使用 Docker；在 macOS 或 WSL2 上使用 Docker 时，请设置 `NANOCLAW_RUNTIME_DRIVER=docker`。然后运行 `bash nanoclaw.sh` 即可。
 
 **这个项目安全吗？**
 

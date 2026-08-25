@@ -32,7 +32,7 @@ cd nanoclaw-v2
 bash nanoclaw.sh
 ```
 
-`nanoclaw.sh`は、まっさらなマシンから、メッセージを送れる名前付きエージェントが動く状態までを一気通貫で案内します。NodeやpnpmやDockerが無ければインストールし、AnthropicクレデンシャルをOneCLIに登録し、エージェントコンテナをビルドし、最初のチャネル（Telegram、Discord、WhatsApp、またはローカルCLI）とペアリングします。途中でステップが失敗すれば自動的にClaude Codeが呼び出され、原因を診断して中断箇所から再開します。
+`nanoclaw.sh`は、まっさらなマシンから、メッセージを送れる名前付きエージェントが動く状態までを一気通貫で案内します。Apple Silicon搭載macOSではApple Containerがデフォルトのランタイムなので、`container system start`で起動してください。LinuxではDockerを使用し、macOSでDockerを明示的に使う場合は`NANOCLAW_RUNTIME_DRIVER=docker`を設定します。スクリプトは不足しているNodeとpnpmをインストールし、AnthropicクレデンシャルをOneCLIに登録し、エージェントコンテナをビルドし、最初のチャネル（Telegram、Discord、WhatsApp、またはローカルCLI）とペアリングします。途中でステップが失敗すれば自動的にClaude Codeが呼び出され、原因を診断して中断箇所から再開します。
 
 ## 設計思想
 
@@ -57,7 +57,7 @@ bash nanoclaw.sh
 - **エージェントごとのワークスペース** — 各エージェントグループは独自の`CLAUDE.md`、独自のメモリ、独自のコンテナ、そしてあなたが許可したマウントのみを持ちます。明示的に配線しない限り、境界を越えるものはありません。
 - **スケジュールタスク** — Claudeを実行し、結果を返信できる定期ジョブ。
 - **Webアクセス** — Webからの検索とコンテンツ取得。
-- **コンテナ分離** — エージェントはDockerでサンドボックス化されます（macOS/Linux/WSL2）。[Docker Sandboxes](docs/docker-sandboxes.md)によるマイクロVM分離や、macOSネイティブのオプトインとしてApple Containerも選択可能です。
+- **コンテナ分離** — Apple Silicon搭載macOSではデフォルトでApple Container、Linux・macOS・WSL2ではDockerを使ってエージェントをサンドボックス化します。[Docker Sandboxes](docs/docker-sandboxes.md)によるマイクロVM分離も利用できます。
 - **クレデンシャルのセキュリティ** — エージェントは生のAPIキーを保持しません。アウトバウンドリクエストは[OneCLI Agent Vault](https://github.com/onecli/onecli)を経由し、リクエスト時に認証情報を注入して、エージェントごとのポリシーとレート制限を適用します。
 
 ## 使い方
@@ -109,7 +109,7 @@ NanoClawは設定ファイルを使いません。変更したいときは、Cla
 
 - macOSまたはLinux（WindowsはWSL2経由）
 - Node.js 22以上とpnpm 10以上（インストーラーが未インストールなら両方をインストールします）
-- [Docker Desktop](https://docker.com/products/docker-desktop)（macOS/Windows）または Docker Engine（Linux）
+- Apple Silicon搭載macOSではApple Container（`container system start`）、LinuxではDocker Engine。Dockerを使うmacOS/Windowsでは[Docker Desktop](https://docker.com/products/docker-desktop)を利用し、`NANOCLAW_RUNTIME_DRIVER=docker`を設定します。
 - [Claude Code](https://claude.ai/download)（`/customize`、`/debug`、セットアップ時のエラー復旧、全ての`/add-<channel>`スキルで使用）
 
 ## アーキテクチャ
@@ -139,13 +139,13 @@ NanoClawは設定ファイルを使いません。変更したいときは、Cla
 
 ## FAQ
 
-**なぜDockerなのか？**
+**なぜこれらのコンテナランタイムなのか？**
 
-Dockerはクロスプラットフォーム対応（macOS、Linux、WSL2経由のWindows）と成熟したエコシステムを提供します。macOSでは、`/convert-to-apple-container`でオプションとしてApple Containerに切り替え、より軽量なネイティブランタイムを使えます。さらに強い分離が必要なら、[Docker Sandboxes](docs/docker-sandboxes.md)が各コンテナをマイクロVM内で動作させます。
+Apple ContainerはApple Silicon搭載macOSのデフォルトで、軽量なネイティブランタイムです。DockerはLinux、macOS、WSL2で利用できます。Dockerを明示的に選ぶには`NANOCLAW_RUNTIME_DRIVER=docker`を設定します。さらに強い分離が必要なら、[Docker Sandboxes](docs/docker-sandboxes.md)が各コンテナをマイクロVM内で動作させます。
 
 **LinuxやWindowsで実行できますか？**
 
-はい。Dockerがデフォルトのランタイムで、macOS、Linux、Windows（WSL2経由）で動作します。`bash nanoclaw.sh`を実行するだけです。
+はい。Apple Silicon搭載macOSではApple Containerがデフォルトなので、セットアップ前に`container system start`を実行してください。LinuxではDockerを使用し、macOSまたはWSL2経由のWindowsでDockerを使う場合は`NANOCLAW_RUNTIME_DRIVER=docker`を設定します。その後`bash nanoclaw.sh`を実行してください。
 
 **セキュリティは大丈夫ですか？**
 

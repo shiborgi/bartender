@@ -45,7 +45,7 @@ cd nanoclaw-v2
 bash nanoclaw.sh
 ```
 
-`nanoclaw.sh` walks you from a fresh machine to a named agent you can message. It installs Node, pnpm, and Docker if missing, registers your Anthropic credential with OneCLI, builds the agent container, and pairs your first channel (Slack, Telegram, Discord, WhatsApp, iMessage, or a local CLI). If a step fails, Claude Code is invoked automatically to diagnose and resume from where it broke.
+`nanoclaw.sh` walks you from a fresh machine to a named agent you can message. On Apple Silicon macOS, Apple Container is the default runtime; start it with `container system start`. Docker is used on Linux, and you can select it explicitly on macOS with `NANOCLAW_RUNTIME_DRIVER=docker`. The script installs Node and pnpm if missing, registers your Anthropic credential with OneCLI, builds the agent container, and pairs your first channel (Slack, Telegram, Discord, WhatsApp, iMessage, or a local CLI). If a step fails, Claude Code is invoked automatically to diagnose and resume from where it broke.
 
 <details>
 <summary><strong>Migrating from NanoClaw v1?</strong></summary>
@@ -93,7 +93,7 @@ See [docs/v1-to-v2-changes.md](docs/v1-to-v2-changes.md) for what's different an
 - **Per-agent workspace** — each agent group has its own `CLAUDE.md`, its own memory, its own container, and only the mounts you allow. Nothing crosses the boundary unless you wire it to.
 - **Scheduled tasks**: recurring jobs executed by the agent, with optional [script gates](docs/scheduled-tasks.md) that avoid waking it when there is no work
 - **Web access** — search and fetch content from the web
-- **Container isolation** — agents are sandboxed in Docker containers (macOS/Linux/WSL2)
+- **Container isolation** — agents are sandboxed in Apple Container on Apple Silicon macOS by default, or Docker on Linux, macOS, and WSL2
 - **Credential security** — agents never hold raw API keys. Outbound requests route through [OneCLI's Agent Vault](https://github.com/onecli/onecli), which injects credentials at request time and enforces per-agent policies and rate limits.
 - **Agent templates**: stamp a ready-to-run agent (instructions + MCP tools + skills, no secrets) from a reusable bundle via `ncl groups create --template <ref>`. Templates load from the local `templates/` folder; populate it by hand or by copying from the [public library](https://github.com/nanocoai/nanoclaw-templates). See [docs/templates.md](docs/templates.md).
 
@@ -154,7 +154,7 @@ No channel or provider skills are currently requested — propose one via an iss
 
 - macOS or Linux (Windows via WSL2)
 - Node.js 22+ and pnpm 10+ (the installer will install both if missing)
-- [Docker Desktop](https://docker.com/products/docker-desktop) (macOS/Windows) or Docker Engine (Linux)
+- Apple Container on Apple Silicon macOS (`container system start`); Docker Engine on Linux, or Docker Desktop on macOS/Windows when `NANOCLAW_RUNTIME_DRIVER=docker`
 - [Claude Code](https://claude.ai/download) for `/customize`, `/debug`, error recovery during setup, and all `/add-<channel>` skills
 
 ## Architecture
@@ -184,13 +184,13 @@ Key files:
 
 ## FAQ
 
-**Why Docker?**
+**Why these container runtimes?**
 
-Docker provides cross-platform support (macOS, Linux and Windows via WSL2) and a mature ecosystem.
+Apple Container is the default on Apple Silicon macOS and provides a native lightweight runtime. Docker provides cross-platform support on Linux, macOS, and Windows via WSL2. Set `NANOCLAW_RUNTIME_DRIVER=docker` to select Docker explicitly.
 
 **Can I run this on Linux or Windows?**
 
-Yes. Docker is the default runtime and works on macOS, Linux, and Windows (via WSL2). Just run `bash nanoclaw.sh`.
+Yes. Apple Silicon macOS uses Apple Container by default; run `container system start` before setup. Linux uses Docker, and Docker also works on macOS or Windows via WSL2 when selected with `NANOCLAW_RUNTIME_DRIVER=docker`. Then run `bash nanoclaw.sh`.
 
 **Is this secure?**
 
