@@ -98,6 +98,14 @@ export function configuredDriverKind(env: NodeJS.ProcessEnv = process.env): Driv
 }
 
 /**
+ * Leftover-shell CLI for image builds and other non-session docker-shaped
+ * commands. Not a session selector — sessions go through getSessionDriver().
+ */
+export function runtimeBin(env: NodeJS.ProcessEnv = process.env): string {
+  return configuredDriverKind(env) === 'apple-container' ? 'container' : 'docker';
+}
+
+/**
  * The mount policy every driver enforces. `surfaceRoots` is an enumerated list,
  * never a bare install-root prefix: in this layout the state roots nest inside
  * the project root, so a prefix check would admit the central DB as a

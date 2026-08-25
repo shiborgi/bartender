@@ -31,7 +31,7 @@ export class EgressLockdownError extends Error {
 
 function dockerOk(args: string[]): boolean {
   try {
-    execFileSync(CONTAINER_RUNTIME_BIN, args, { stdio: 'pipe', timeout: 15000 });
+    execFileSync(CONTAINER_RUNTIME_BIN(), args, { stdio: 'pipe', timeout: 15000 });
     return true;
   } catch {
     return false;
@@ -42,7 +42,7 @@ function dockerOk(args: string[]): boolean {
 function gatewayAttached(): boolean {
   try {
     const out = execFileSync(
-      CONTAINER_RUNTIME_BIN,
+      CONTAINER_RUNTIME_BIN(),
       ['network', 'inspect', EGRESS_NETWORK, '--format', '{{range .Containers}}{{.Name}} {{end}}'],
       { stdio: ['pipe', 'pipe', 'pipe'], encoding: 'utf-8', timeout: 15000 },
     );

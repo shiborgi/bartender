@@ -22,6 +22,7 @@ import {
   mountPolicy,
   readSetting,
   resetSessionDriver,
+  runtimeBin,
 } from './index.js';
 // Imported from the registry module, not the barrel that re-exports it: this is
 // the entry point an overlay reaches for, and it has to work without the
@@ -106,6 +107,31 @@ describe('configuredDriverKind', () => {
     // that "corrects" a value here is a silent fallback wearing a hat.
     expect(configuredDriverKind({ NANOCLAW_RUNTIME_DRIVER: 'firecracker' })).toBe('firecracker');
     expect(log.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('runtimeBin', () => {
+  it('maps apple-container to container and docker to docker', () => {
+    expect(runtimeBin({ NANOCLAW_RUNTIME_DRIVER: 'apple-container' })).toBe('container');
+    expect(runtimeBin({ NANOCLAW_RUNTIME_DRIVER: 'docker' })).toBe('docker');
+  });
+
+  it('follows the configured driver default', () => {
+    vi.spyOn(os, 'platform').mockReturnValue('darwin');
+    vi.spyOn(os, 'arch').mockReturnValue('arm64');
+    expect(runtimeBin({})).toBe('container');
+    vi.spyOn(os, 'platform').mockReturnValue('linux');
+    vi.spyOn(os, 'arch').mockReturnValue('x64');
+    expect(runtimeBin({})).toBe('docker');
+  });
+
+  it('points leftover shells at the same mapping and is not a session selector', async () => {
+    const { CONTAINER_RUNTIME_BIN } = await import('../container-runtime.js');
+    expect(CONTAINER_RUNTIME_BIN({ NANOCLAW_RUNTIME_DRIVER: 'apple-container' })).toBe('container');
+    expect(CONTAINER_RUNTIME_BIN({ NANOCLAW_RUNTIME_DRIVER: 'docker' })).toBe('docker');
+    const src = fs.readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/CONTAINER_RUNTIME_BIN/);
+    expect(src).not.toMatch(/container-runtime/);
   });
 });
 

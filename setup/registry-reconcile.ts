@@ -118,7 +118,7 @@ export async function reconcileDerivedImages(): Promise<ReconcileResult> {
     // Not `-f`: a derived image still held by a running container should stay
     // until that container exits. The row is already clear, so the leftover is
     // inert — the next spawn uses the slug tag either way.
-    const rmi = spawnSync(CONTAINER_RUNTIME_BIN, ['rmi', derivedTag], { encoding: 'utf-8' });
+    const rmi = spawnSync(CONTAINER_RUNTIME_BIN(), ['rmi', derivedTag], { encoding: 'utf-8' });
     const stderr = (rmi.stderr ?? '').trim();
     if (rmi.status === 0) {
       result.removed.push(derivedTag);

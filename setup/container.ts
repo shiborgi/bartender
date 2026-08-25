@@ -7,6 +7,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'fs';
 import path from 'path';
 import { setTimeout as sleep } from 'timers/promises';
 
+import { configuredDriverKind, runtimeBin } from '../src/drivers/index.js';
 import { log } from '../src/log.js';
 import { getDefaultContainerImage } from '../src/install-slug.js';
 import { commandExists, getPlatform } from './platform.js';
@@ -67,17 +68,46 @@ async function tryStartDocker(): Promise<DockerStatus> {
   return 'no-daemon';
 }
 
-function parseArgs(args: string[]): { runtime: string } {
-  // `--runtime` is still accepted for backwards compatibility with the /setup
-  // skill, but `docker` is the only supported value.
-  let runtime = 'docker';
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--runtime' && args[i + 1]) {
-      runtime = args[i + 1];
-      i++;
+type ContainerSystemStatus = 'ok' | 'no-daemon' | 'other';
+
+function containerSystemStatus(): ContainerSystemStatus {
+  const res = spawnSync('container', ['system', 'status'], { encoding: 'utf-8' });
+  return res.status === 0 ? 'ok' : 'no-daemon';
+}
+
+async function tryStartContainerSystem(): Promise<ContainerSystemStatus> {
+  log.info('container system not running — attempting to start');
+  try {
+    execSync('container system start', { stdio: 'inherit' });
+  } catch (err) {
+    log.warn('Start command failed', { err });
+    return 'other';
+  }
+
+  for (let i = 0; i < 30; i++) {
+    await sleep(2000);
+    if (containerSystemStatus() === 'ok') {
+      log.info('container system is up');
+      return 'ok';
     }
   }
-  return { runtime };
+  log.warn('container system did not become ready within 60s');
+  return 'no-daemon';
+}
+
+const KNOWN_SETUP_RUNTIMES = new Set(['docker', 'apple-container']);
+
+export function isKnownSetupRuntime(runtime: string): boolean {
+  return KNOWN_SETUP_RUNTIMES.has(runtime);
+}
+
+export function parseRuntime(args: string[]): string {
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--runtime' && args[i + 1]) {
+      return args[i + 1];
+    }
+  }
+  return configuredDriverKind();
 }
 
 /**
@@ -135,12 +165,10 @@ function pinnedRepo(projectRoot: string): string | undefined {
  * so taking the first reports whichever sorts first — routinely not the one in
  * play. Match the expected repository and only fall back when nothing matches.
  */
-function imageDigest(image: string, expectRepo?: string): string {
-  const res = spawnSync(
-    'docker',
-    ['image', 'inspect', '--format', '{{range .RepoDigests}}{{println .}}{{end}}', image],
-    { encoding: 'utf-8' },
-  );
+function imageDigest(cli: string, image: string, expectRepo?: string): string {
+  const res = spawnSync(cli, ['image', 'inspect', '--format', '{{range .RepoDigests}}{{println .}}{{end}}', image], {
+    encoding: 'utf-8',
+  });
   if (res.status !== 0) return '';
   const all = (res.stdout ?? '')
     .split('\n')
@@ -173,11 +201,12 @@ const SMOKE_SCRIPT = [
 
 export async function run(args: string[]): Promise<void> {
   const projectRoot = process.cwd();
-  const { runtime } = parseArgs(args);
+  const runtime = parseRuntime(args);
+  const cli = runtimeBin({ NANOCLAW_RUNTIME_DRIVER: runtime });
   const image = getDefaultContainerImage(projectRoot);
   const logFile = path.join(projectRoot, 'logs', 'setup.log');
 
-  if (runtime !== 'docker') {
+  if (!isKnownSetupRuntime(runtime)) {
     emitStatus('SETUP_CONTAINER', {
       RUNTIME: runtime,
       IMAGE: image,
@@ -190,76 +219,108 @@ export async function run(args: string[]): Promise<void> {
     process.exit(4);
   }
 
-  if (!commandExists('docker')) {
-    log.info('Docker not found — running setup/install-docker.sh');
-    try {
-      execSync('bash setup/install-docker.sh', { cwd: projectRoot, stdio: 'inherit' });
-    } catch (err) {
-      log.warn('install-docker.sh failed', { err });
-    }
-  }
-
-  if (!commandExists('docker')) {
-    emitStatus('SETUP_CONTAINER', {
-      RUNTIME: runtime,
-      IMAGE: image,
-      BUILD_OK: false,
-      TEST_OK: false,
-      STATUS: 'failed',
-      ERROR: 'runtime_not_available',
-      LOG: 'logs/setup.log',
-    });
-    process.exit(2);
-  }
-
-  {
-    let status = dockerStatus();
-    if (status !== 'ok') {
-      status = await tryStartDocker();
-    }
-
-    // Socket is unreachable due to group perms — current shell's supplementary
-    // groups are fixed at login, so `usermod -aG docker` doesn't affect us
-    // until next login. Ensure the user is in the docker group (install-docker.sh
-    // does this on fresh installs, but skips when Docker is already present),
-    // then re-exec under `sg docker` so the child picks up docker as its
-    // primary group and can talk to /var/run/docker.sock without a logout.
-    if (status === 'no-permission' && getPlatform() === 'linux' && commandExists('sg')) {
-      // Ensure the current user is in the docker group — without this,
-      // sg will ask for the (typically unset) group password and fail.
-      const inGroup = spawnSync('id', ['-nG'], { encoding: 'utf-8' });
-      if (!(inGroup.stdout ?? '').split(/\s+/).includes('docker')) {
-        log.info('Adding current user to docker group');
-        spawnSync('sudo', ['usermod', '-aG', 'docker', process.env.USER ?? ''], {
-          stdio: 'inherit',
-        });
-      }
-
-      log.info('Re-executing container step under `sg docker`');
-      const res = spawnSync('sg', ['docker', '-c', 'pnpm exec tsx setup/index.ts --step container'], {
-        cwd: projectRoot,
-        stdio: 'inherit',
-      });
-      process.exit(res.status ?? 1);
-    }
-
-    if (status !== 'ok') {
-      const error = status === 'no-permission' ? 'docker_group_not_active' : 'runtime_not_available';
+  if (runtime === 'apple-container') {
+    if (!commandExists(cli)) {
       emitStatus('SETUP_CONTAINER', {
         RUNTIME: runtime,
         IMAGE: image,
         BUILD_OK: false,
         TEST_OK: false,
         STATUS: 'failed',
-        ERROR: error,
+        ERROR: 'runtime_not_available',
         LOG: 'logs/setup.log',
       });
       process.exit(2);
     }
+
+    let status = containerSystemStatus();
+    if (status !== 'ok') {
+      status = await tryStartContainerSystem();
+    }
+    if (status !== 'ok') {
+      emitStatus('SETUP_CONTAINER', {
+        RUNTIME: runtime,
+        IMAGE: image,
+        BUILD_OK: false,
+        TEST_OK: false,
+        STATUS: 'failed',
+        ERROR: 'runtime_not_available',
+        LOG: 'logs/setup.log',
+      });
+      process.exit(2);
+    }
+  } else {
+    if (!commandExists('docker')) {
+      log.info('Docker not found — running setup/install-docker.sh');
+      try {
+        execSync('bash setup/install-docker.sh', { cwd: projectRoot, stdio: 'inherit' });
+      } catch (err) {
+        log.warn('install-docker.sh failed', { err });
+      }
+    }
+
+    if (!commandExists('docker')) {
+      emitStatus('SETUP_CONTAINER', {
+        RUNTIME: runtime,
+        IMAGE: image,
+        BUILD_OK: false,
+        TEST_OK: false,
+        STATUS: 'failed',
+        ERROR: 'runtime_not_available',
+        LOG: 'logs/setup.log',
+      });
+      process.exit(2);
+    }
+
+    {
+      let status = dockerStatus();
+      if (status !== 'ok') {
+        status = await tryStartDocker();
+      }
+
+      // Socket is unreachable due to group perms — current shell's supplementary
+      // groups are fixed at login, so `usermod -aG docker` doesn't affect us
+      // until next login. Ensure the user is in the docker group (install-docker.sh
+      // does this on fresh installs, but skips when Docker is already present),
+      // then re-exec under `sg docker` so the child picks up docker as its
+      // primary group and can talk to /var/run/docker.sock without a logout.
+      if (status === 'no-permission' && getPlatform() === 'linux' && commandExists('sg')) {
+        // Ensure the current user is in the docker group — without this,
+        // sg will ask for the (typically unset) group password and fail.
+        const inGroup = spawnSync('id', ['-nG'], { encoding: 'utf-8' });
+        if (!(inGroup.stdout ?? '').split(/\s+/).includes('docker')) {
+          log.info('Adding current user to docker group');
+          spawnSync('sudo', ['usermod', '-aG', 'docker', process.env.USER ?? ''], {
+            stdio: 'inherit',
+          });
+        }
+
+        log.info('Re-executing container step under `sg docker`');
+        const res = spawnSync('sg', ['docker', '-c', 'pnpm exec tsx setup/index.ts --step container'], {
+          cwd: projectRoot,
+          stdio: 'inherit',
+        });
+        process.exit(res.status ?? 1);
+      }
+
+      if (status !== 'ok') {
+        const error = status === 'no-permission' ? 'docker_group_not_active' : 'runtime_not_available';
+        emitStatus('SETUP_CONTAINER', {
+          RUNTIME: runtime,
+          IMAGE: image,
+          BUILD_OK: false,
+          TEST_OK: false,
+          STATUS: 'failed',
+          ERROR: error,
+          LOG: 'logs/setup.log',
+        });
+        process.exit(2);
+      }
+    }
   }
 
-  const buildCmd = 'docker build';
-  const runCmd = 'docker';
+  const buildCmd = `${cli} build`;
+  const runCmd = cli;
 
   // Build-args from .env. Only INSTALL_CJK_FONTS is passed through today.
   // Keeps /setup and ./container/build.sh in sync — both read the same source.
@@ -298,6 +359,7 @@ export async function run(args: string[]): Promise<void> {
     const pullRes = spawnSync('bash', [path.join(projectRoot, 'container', 'pull.sh')], {
       cwd: projectRoot,
       stdio: 'inherit',
+      env: { ...process.env, CONTAINER_RUNTIME: cli },
     });
     if (pullRes.status === 0) {
       buildOk = true;
@@ -305,6 +367,7 @@ export async function run(args: string[]): Promise<void> {
       // reported digest is that repository's and not some other one the same
       // bytes also live in.
       digest = imageDigest(
+        cli,
         image,
         readSetting(projectRoot, 'NANOCLAW_AGENT_IMAGE_REF')?.split('@')[0] ?? pinnedRepo(projectRoot),
       );

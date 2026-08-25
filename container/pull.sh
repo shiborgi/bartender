@@ -39,7 +39,9 @@ source "$PROJECT_ROOT/setup/lib/install-slug.sh"
 IMAGE_NAME="$(container_image_base)"
 TAG="${1:-latest}"
 LOCAL_REF="${IMAGE_NAME}:${TAG}"
-CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
+# shellcheck source=../setup/lib/runtime-bin.sh
+source "$PROJECT_ROOT/setup/lib/runtime-bin.sh"
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-$(runtime_bin)}"
 
 # Caller's env takes precedence; fall back to .env.
 read_env_setting() {

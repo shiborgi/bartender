@@ -6,6 +6,7 @@ import path from 'path';
 import Database from 'better-sqlite3';
 
 import { getInstallSlug, getLaunchdLabel, getSystemdUnit } from '../../src/install-slug.js';
+import { LABELS } from '../../src/drivers/types.js';
 import type { RunCommand } from './onecli-agents.js';
 import { detectExistingInstall, scanInstall, type ScanDeps } from './scan.js';
 
@@ -33,6 +34,7 @@ function deps(overrides: Partial<ScanDeps> = {}): ScanDeps {
     home,
     platform: 'darwin',
     runCommand: fakeRun({}),
+    containerRuntime: 'docker',
     ...overrides,
   };
 }
@@ -116,6 +118,41 @@ describe('scanInstall service artifacts', () => {
     expect(inv.service.containerIds).toEqual([]);
     expect(inv.service.image).toBeUndefined();
     expect(inv.notes.some((n) => n.includes("'docker' unavailable"))).toBe(true);
+  });
+
+  it('lists apple-container objects from JSON labeled for this install slug', () => {
+    const slug = getInstallSlug(root);
+    const calls: string[][] = [];
+    const container: RunCommand = (cmd, args) => {
+      calls.push([cmd, ...args]);
+      if (args[0] === 'list') {
+        return {
+          status: 0,
+          stdout: JSON.stringify([
+            {
+              name: 'ncl-mine',
+              labels: { [LABELS.install]: slug, [LABELS.role]: 'agent' },
+            },
+            {
+              configuration: {
+                id: 'ncl-other',
+                labels: { [LABELS.install]: 'other', [LABELS.role]: 'agent' },
+              },
+            },
+          ]),
+        };
+      }
+      if (args[0] === 'image') return { status: 0, stdout: '' };
+      return { status: 1, stdout: '' };
+    };
+
+    const inv = scanInstall(deps({ containerRuntime: 'container', runCommand: container }));
+    expect(inv.containerRuntime).toBe('container');
+    expect(inv.service.containerIds).toEqual(['ncl-mine']);
+    expect(inv.service.image).toMatch(/^nanoclaw-agent-v2-[0-9a-f]{8}:latest$/);
+    expect(calls[0]).toEqual(['container', 'list', '--all', '--format', 'json']);
+    expect(calls.some((c) => c.includes('--filter'))).toBe(false);
+    expect(inv.notes).toEqual([]);
   });
 });
 

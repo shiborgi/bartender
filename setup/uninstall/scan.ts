@@ -18,6 +18,9 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
+import { parseContainerRecords, recordLabels, recordName } from '../../src/drivers/apple-container-driver.js';
+import { runtimeBin } from '../../src/drivers/index.js';
+import { LABELS } from '../../src/drivers/types.js';
 import { getContainerImageBase, getInstallSlug, getLaunchdLabel, getSystemdUnit } from '../../src/install-slug.js';
 import {
   listVaultAgents,
@@ -76,6 +79,7 @@ export interface ScanDeps {
   home: string;
   platform: NodeJS.Platform;
   runCommand: RunCommand;
+  containerRuntime?: string;
 }
 
 export function tilde(p: string, home: string): string {
@@ -85,7 +89,7 @@ export function tilde(p: string, home: string): string {
 export function scanInstall(deps: ScanDeps): Inventory {
   const { projectRoot, home, runCommand } = deps;
   const slug = getInstallSlug(projectRoot);
-  const containerRuntime = process.env.CONTAINER_RUNTIME ?? 'docker';
+  const containerRuntime = deps.containerRuntime ?? runtimeBin();
   const notes: string[] = [];
 
   const service = scanService(deps, slug, containerRuntime, notes);
@@ -169,22 +173,11 @@ function scanService(deps: ScanDeps, slug: string, containerRuntime: string, not
   }
 
   // Container label matches what container-runner.ts stamps at spawn time.
-  const installLabel = `nanoclaw-install=${slug}`;
+  const installLabel = `${LABELS.install}=${slug}`;
   const image = `${getContainerImageBase(projectRoot)}:latest`;
-  let runtimeOk = true;
-  try {
-    const ps = runCommand(containerRuntime, ['ps', '-aq', '--filter', `label=${installLabel}`]);
-    if (ps.status === 0) {
-      service.containerIds = ps.stdout
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
-    } else {
-      runtimeOk = false;
-    }
-  } catch {
-    runtimeOk = false;
-  }
+  const listed = listInstallContainerIds(runCommand, containerRuntime, installLabel);
+  let runtimeOk = listed.ok;
+  if (listed.ok) service.containerIds = listed.ids;
   if (runtimeOk) {
     try {
       const inspect = runCommand(containerRuntime, ['image', 'inspect', image]);
@@ -194,11 +187,7 @@ function scanService(deps: ScanDeps, slug: string, containerRuntime: string, not
     }
   }
   if (!runtimeOk) {
-    notes.push(
-      `Containers/image: '${containerRuntime}' unavailable; remove later with: ` +
-        `${containerRuntime} ps -aq --filter label=${installLabel} | xargs -r ${containerRuntime} rm -f; ` +
-        `${containerRuntime} rmi ${image}`,
-    );
+    notes.push(unavailableRuntimeNote(containerRuntime, installLabel, image));
   }
 
   const link = path.join(home, '.local', 'bin', 'ncl');
@@ -237,6 +226,54 @@ function scanOnecli(projectRoot: string, runCommand: RunCommand, notes: string[]
     );
   }
   return { mine, orphans, idsKnown: known };
+}
+
+export function listInstallContainerIds(
+  runCommand: RunCommand,
+  runtime: string,
+  installLabel: string,
+): { ok: boolean; ids: string[] } {
+  const eq = installLabel.indexOf('=');
+  const labelKey = eq >= 0 ? installLabel.slice(0, eq) : LABELS.install;
+  const labelValue = eq >= 0 ? installLabel.slice(eq + 1) : installLabel;
+  try {
+    if (runtime === 'container') {
+      const listed = runCommand(runtime, ['list', '--all', '--format', 'json']);
+      if (listed.status !== 0) return { ok: false, ids: [] };
+      const ids = parseContainerRecords(listed.stdout)
+        .filter((record) => recordLabels(record)[labelKey] === labelValue)
+        .map((record) => recordName(record))
+        .filter(Boolean);
+      return { ok: true, ids };
+    }
+    const ps = runCommand(runtime, ['ps', '-aq', '--filter', `label=${installLabel}`]);
+    if (ps.status !== 0) return { ok: false, ids: [] };
+    return {
+      ok: true,
+      ids: ps.stdout
+        .split('\n')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    };
+  } catch {
+    return { ok: false, ids: [] };
+  }
+}
+
+export function unavailableRuntimeNote(runtime: string, installLabel: string, image?: string): string {
+  const rmi = image ? `; ${runtime} rmi ${image}` : '';
+  if (runtime === 'container') {
+    return (
+      `Containers/image: '${runtime}' unavailable; remove later with: ` +
+      `${runtime} list --all --format json  # filter ${installLabel}; ${runtime} rm --force <ids>` +
+      rmi
+    );
+  }
+  return (
+    `Containers/image: '${runtime}' unavailable; remove later with: ` +
+    `${runtime} ps -aq --filter label=${installLabel} | xargs -r ${runtime} rm -f` +
+    rmi
+  );
 }
 
 function existingItems(

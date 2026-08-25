@@ -8,9 +8,12 @@
  * driver seam (`src/drivers/`), which is what makes the claim true.
  *
  * What is left is the binary name, still needed by the few paths that shell
- * Docker for something that is not a session: per-group image builds and the
- * egress lockdown network.
+ * the runtime for something that is not a session: per-group image builds and
+ * the egress lockdown network. Not a session selector.
  */
+import { runtimeBin } from './drivers/index.js';
 
-/** The container runtime binary name. */
-export const CONTAINER_RUNTIME_BIN = 'docker';
+/** The leftover-shell CLI. Resolved from the selected driver; not a session selector. */
+export function CONTAINER_RUNTIME_BIN(env?: NodeJS.ProcessEnv): string {
+  return runtimeBin(env);
+}

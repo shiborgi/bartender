@@ -58,7 +58,9 @@ while [ $# -gt 0 ]; do
 done
 
 TAG="${1:-latest}"
-CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
+# shellcheck source=../setup/lib/runtime-bin.sh
+source "$PROJECT_ROOT/setup/lib/runtime-bin.sh"
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-$(runtime_bin)}"
 
 # No explicit subcommand, on an install that pulls its image. Skills that add a
 # runtime dependency land here — they append to cli-tools.json (or edit the

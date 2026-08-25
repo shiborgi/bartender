@@ -147,6 +147,43 @@ describe('executePlan', () => {
     }
   });
 
+  it('re-lists apple-container objects from JSON instead of docker ps --filter', () => {
+    const calls: string[][] = [];
+    const container: RunCommand = (cmd, args) => {
+      calls.push([cmd, ...args]);
+      if (args[0] === 'list') {
+        return {
+          status: 0,
+          stdout: JSON.stringify([
+            { name: 'ncl-keep', labels: { 'nanoclaw-install': 'abcd1234' } },
+            { name: 'ncl-skip', labels: { 'nanoclaw-install': 'other' } },
+          ]),
+        };
+      }
+      return { status: 0, stdout: '' };
+    };
+
+    executePlan(
+      [{ kind: 'rm-containers', runtime: 'container', labelFilter: 'nanoclaw-install=abcd1234' }],
+      deps({ runCommand: container }),
+    );
+
+    expect(calls).toEqual([
+      ['container', 'list', '--all', '--format', 'json'],
+      ['container', 'rm', '--force', 'ncl-keep'],
+    ]);
+  });
+
+  it('removes an apple-container image through the selected CLI', () => {
+    const calls: string[][] = [];
+    const recorder: RunCommand = (cmd, args) => {
+      calls.push([cmd, ...args]);
+      return { status: 0, stdout: '' };
+    };
+    executePlan([{ kind: 'rmi', runtime: 'container', image: 'img:latest' }], deps({ runCommand: recorder }));
+    expect(calls).toEqual([['container', 'rmi', 'img:latest']]);
+  });
+
   it('re-lists containers by label at removal time instead of using scan-time ids', () => {
     const calls: string[][] = [];
     const docker: RunCommand = (cmd, args) => {

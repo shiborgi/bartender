@@ -12,6 +12,7 @@ import path from 'path';
 
 import type { RunCommand } from './onecli-agents.js';
 import type { RemovalAction } from './plan.js';
+import { listInstallContainerIds, unavailableRuntimeNote } from './scan.js';
 
 export interface ExecDeps {
   runCommand: RunCommand;
@@ -107,20 +108,16 @@ function runAction(action: RemovalAction, deps: ExecDeps, notes: string[]): void
     case 'rm-containers': {
       // Re-list at removal time: the host was alive during the confirm
       // phase and may have spawned containers the scan never saw.
-      const ps = runCommand(action.runtime, ['ps', '-aq', '--filter', `label=${action.labelFilter}`]);
-      if (ps.status !== 0) {
+      const listed = listInstallContainerIds(runCommand, action.runtime, action.labelFilter);
+      if (!listed.ok) {
         notes.push(
-          `Containers: '${action.runtime}' unavailable — remove later with: ` +
-            `${action.runtime} ps -aq --filter label=${action.labelFilter} | xargs -r ${action.runtime} rm -f`,
+          unavailableRuntimeNote(action.runtime, action.labelFilter).replace('Containers/image:', 'Containers:'),
         );
         break;
       }
-      const ids = ps.stdout
-        .split('\n')
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const ids = listed.ids;
       if (ids.length === 0) break;
-      runCommand(action.runtime, ['rm', '-f', ...ids]);
+      runCommand(action.runtime, action.runtime === 'container' ? ['rm', '--force', ...ids] : ['rm', '-f', ...ids]);
       log(`✓ removed ${ids.length} container(s)`);
       break;
     }
