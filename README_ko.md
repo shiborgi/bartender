@@ -71,7 +71,7 @@ bash migrate-v2.sh
 
 **기능보다 스킬.** 트렁크는 특정 채널 어댑터나 대체 에이전트 프로바이더가 아니라 레지스트리와 인프라를 제공합니다. 채널(Discord, Slack, Telegram, WhatsApp, …)은 오래 유지되는 `channels` 브랜치에, 대체 프로바이더(OpenCode, Ollama)는 `providers` 브랜치에 있습니다. `/add-telegram`, `/add-opencode` 등을 실행하면 스킬이 여러분이 필요로 하는 모듈만 정확히 포크로 복사합니다. 요청하지 않은 기능은 없습니다.
 
-**최고의 하니스, 최고의 모델.** NanoClaw는 Anthropic의 공식 Claude Agent SDK를 통해 Claude Code를 네이티브로 사용하므로, 최신 Claude 모델과 Claude Code의 전체 도구 세트를 누릴 수 있습니다. 여기에는 자신의 NanoClaw 포크를 직접 수정하고 확장하는 능력도 포함됩니다. 다른 프로바이더는 드롭인 옵션입니다. OpenAI의 Codex는 `/add-codex`(ChatGPT 구독 또는 API 키), OpenRouter·Google·DeepSeek 등은 OpenCode를 통한 `/add-opencode`, 로컬 오픈 웨이트 모델은 `/add-ollama-provider`로 추가합니다. 프로바이더는 에이전트 그룹별로 설정할 수 있습니다.
+**최고의 하니스, 최고의 모델.** OpenCode가 기본 에이전트 하니스입니다(페이로드는 이미 설치됨). Claude는 `ncl groups config update --provider claude`로 계속 사용할 수 있습니다. 다른 프로바이더는 드롭인 옵션입니다. OpenAI의 Codex는 `/add-codex`(ChatGPT 구독 또는 API 키), 로컬 오픈 웨이트 모델은 `/add-ollama-provider`로 추가합니다. 프로바이더는 에이전트 그룹별로 설정할 수 있습니다.
 
 ## 지원 기능
 
