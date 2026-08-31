@@ -17,9 +17,11 @@
  */
 import { OneCLI } from '@onecli-sh/sdk';
 
+import { barbackDnsGeneration } from '../barback-network.js';
 import { ONECLI_API_KEY, ONECLI_URL } from '../config.js';
 import type { MountSpec } from '../drivers/types.js';
 import { log } from '../log.js';
+import { detectPrivateDnsRouteCapability, loadOneCliVersionManifest } from '../onecli-capability.js';
 
 import { registerGatewayProvider, type GatewayContribution } from './gateway-provider-registry.js';
 
@@ -60,6 +62,14 @@ export function contributionFromArgs(args: readonly string[], groupScope: string
 registerGatewayProvider('onecli', () => ({
   kind: 'onecli',
   async contribute({ key, groupName }) {
+    // Barback-backed sessions require the OneCLI private-DNS-route capability
+    // (custom DNS, plaintext HTTP proxying, vault-backed Bearer injection,
+    // destination restrictions). Fail closed when it is absent or the SDK and
+    // daemon capability versions differ — the existing proxy contribution
+    // without custom DNS and plaintext HTTP_PROXY is not an acceptable fallback.
+    if (barbackDnsGeneration() !== null) {
+      detectPrivateDnsRouteCapability(loadOneCliVersionManifest());
+    }
     // OneCLI agent identifier is always the agent group id — stable across
     // sessions and reversible via getAgentGroup() for approval routing.
     await onecli.ensureAgent({ name: groupName, identifier: key.agentGroupId });
