@@ -8,6 +8,7 @@ import { realCli, validateRuntimeName, type Cli, type SupervisedProcess } from '
 import { agentContainerName, assertMountSourcesExist, envArgs, labelArgs } from './docker-driver.js';
 import { log } from '../log.js';
 import {
+  DNS_GENERATION_LABEL,
   LABELS,
   asFailureError,
   labelsForKey,
@@ -104,7 +105,7 @@ export class AppleContainerSessionDriver implements SessionDriver {
     const name = validateRuntimeName(agentContainerName(spec), 'container');
     this.#remember(spec.key);
 
-    if (this.#existingSession(name, spec.key)) {
+    if (this.#existingSession(name, spec)) {
       return new AppleContainerHandle(spec.key, name, this.#cli, null, this.#emit);
     }
 
@@ -136,6 +137,19 @@ export class AppleContainerSessionDriver implements SessionDriver {
       throw normalizeAppleContainerError(error);
     }
     return new AppleContainerHandle(spec.key, name, this.#cli, spec, this.#emit);
+  }
+
+  #recycle(name: string): void {
+    try {
+      this.#cli.run(['stop', name]);
+    } catch {
+      /* already stopped */
+    }
+    try {
+      this.#cli.run(['rm', '--force', name]);
+    } catch {
+      /* already gone */
+    }
   }
 
   #networkArgsFor(spec: SessionSpec): string[] {
@@ -235,7 +249,8 @@ export class AppleContainerSessionDriver implements SessionDriver {
     known.set(keyId(key), key);
   }
 
-  #existingSession(name: string, key: SessionKey): boolean {
+  #existingSession(name: string, spec: SessionSpec): boolean {
+    const key = spec.key;
     let record: ContainerRecord | null;
     try {
       record = inspectRecord(this.#cli, name);
@@ -250,6 +265,18 @@ export class AppleContainerSessionDriver implements SessionDriver {
       labels[LABELS.group] === key.agentGroupId &&
       labels[LABELS.session] === key.sessionId
     ) {
+      // A stale session (stamped generation differs from the current document)
+      // must not be adopted; it is recycled instead.
+      const currentGeneration = spec.labels[DNS_GENERATION_LABEL];
+      if (currentGeneration && labels[DNS_GENERATION_LABEL] !== currentGeneration) {
+        log.info('Session DNS generation is stale; recycling', {
+          containerName: name,
+          stamped: labels[DNS_GENERATION_LABEL],
+          current: currentGeneration,
+        });
+        this.#recycle(name);
+        return false;
+      }
       return true;
     }
     log.warn('Container name collision: existing container is not this session', {

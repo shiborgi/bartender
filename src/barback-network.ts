@@ -79,3 +79,19 @@ export function barbackNetworkArgsFor(
   const inspectOutput = inspect(config.network);
   return barbackNetworkArgs(config, inspectOutput, env.NANOCLAW_EGRESS_NETWORK);
 }
+
+/**
+ * Return the current Barback DNS generation, or null when no client-config is
+ * configured. Used to stamp the dns-generation label on session containers and
+ * to compare against a running session's stamped generation during adoption.
+ */
+export function barbackDnsGeneration(env: NodeJS.ProcessEnv = process.env): string | null {
+  try {
+    return loadBarbackClientConfig(env).dnsGeneration;
+  } catch (error) {
+    if (error instanceof BarbackClientConfigError && error.message.includes('BARBACK_CLIENT_CONFIG_PATH is not set')) {
+      return null;
+    }
+    throw error;
+  }
+}

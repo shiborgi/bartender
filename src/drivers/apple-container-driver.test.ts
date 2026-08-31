@@ -9,7 +9,7 @@ import {
 } from './apple-container-driver.js';
 import { FakeCli } from './fake-cli.js';
 import { FIXTURE_POLICY, fixtureSpec } from './spec-fixture.js';
-import { LABELS, type SessionEvent } from './types.js';
+import { DNS_GENERATION_LABEL, LABELS, type SessionEvent } from './types.js';
 import { appleNetworkGateway, appleNetworkIsInternal } from '../egress-lockdown.js';
 
 vi.mock('../log.js', () => ({
@@ -239,5 +239,56 @@ describe('watchSessions', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('DNS generation stamping and adoption', () => {
+  it('stamps the dns-generation label on the create argv', async () => {
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-1' } });
+    await driver().prepare(spec);
+    const args = createArgs();
+    expect(args).toContain(`--label`);
+    expect(args).toContain(`${DNS_GENERATION_LABEL}=generation-1`);
+  });
+
+  it('does not adopt a session whose stamped generation differs from the current document', async () => {
+    cli.responses = [
+      {
+        match: /^inspect /,
+        output: JSON.stringify({
+          labels: {
+            [LABELS.install]: 'spike',
+            [LABELS.group]: 'g1',
+            [LABELS.session]: 's1',
+            [DNS_GENERATION_LABEL]: 'generation-old',
+          },
+        }),
+      },
+    ];
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-new' } });
+    await driver().prepare(spec);
+    // A stale session is recycled (stop + rm) and recreated, not adopted.
+    expect(cli.callMatching(/^stop /)).toBeDefined();
+    expect(cli.callMatching(/^rm /)).toBeDefined();
+    expect(cli.callMatching(/^create /)).toBeDefined();
+  });
+
+  it('adopts a session whose stamped generation matches the current document', async () => {
+    cli.responses = [
+      {
+        match: /^inspect /,
+        output: JSON.stringify({
+          labels: {
+            [LABELS.install]: 'spike',
+            [LABELS.group]: 'g1',
+            [LABELS.session]: 's1',
+            [DNS_GENERATION_LABEL]: 'generation-1',
+          },
+        }),
+      },
+    ];
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-1' } });
+    await driver().prepare(spec);
+    expect(cli.callMatching(/^create /)).toBeUndefined();
   });
 });

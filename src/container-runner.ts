@@ -33,7 +33,8 @@ import { getDb, hasTable } from './db/connection.js';
 import { getSession } from './db/sessions.js';
 import { getSessionDriver, isSessionEventsDriver } from './drivers/index.js';
 import type { SupervisedHandle, SupervisedSnapshot } from './drivers/session-events.js';
-import { GROUP_FOLDER_LABEL, labelValueLegal, specInvalid } from './drivers/types.js';
+import { barbackDnsGeneration } from './barback-network.js';
+import { DNS_GENERATION_LABEL, GROUP_FOLDER_LABEL, labelValueLegal, specInvalid } from './drivers/types.js';
 import type { ContainerSpec, MountSpec, SessionFailure, SessionSpec } from './drivers/types.js';
 import { getGatewayProvider, type GatewayContribution } from './gateway-providers/index.js';
 import { initGroupFilesystem } from './group-init.js';
@@ -733,9 +734,16 @@ export function composeSessionSpec(input: ComposeSessionSpecInput): SessionSpec 
     );
   }
 
+  const dnsGeneration = barbackDnsGeneration();
+  const labels: Record<string, string> = {
+    'nanoclaw-container-name': containerName,
+    [GROUP_FOLDER_LABEL]: agentGroup.folder,
+  };
+  if (dnsGeneration) labels[DNS_GENERATION_LABEL] = dnsGeneration;
+
   return {
     key: { installSlug: INSTALL_SLUG, agentGroupId: agentGroup.id, sessionId: session.id },
-    labels: { 'nanoclaw-container-name': containerName, [GROUP_FOLDER_LABEL]: agentGroup.folder },
+    labels,
     // The gateway's auxiliary containers ride beside the agent; capability-
     // gated in the spawn path before composition ever runs.
     containers: [agent, ...(gateway.containers ?? [])],
