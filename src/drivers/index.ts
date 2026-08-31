@@ -40,6 +40,7 @@ import os from 'os';
 import path from 'path';
 
 import { DATA_DIR, GROUPS_DIR } from '../config.js';
+import { barbackNetworkArgsFor } from '../barback-network.js';
 import { EGRESS_NETWORK, appleNetworkArgs, egressNetworkArgs, ensureEgressNetwork } from '../egress-lockdown.js';
 import { readEnvFile } from '../env.js';
 import { log } from '../log.js';
@@ -91,7 +92,7 @@ registerSessionDriver(
 registerSessionDriver('apple-container', (policy) =>
   new AppleContainerSessionDriver({
     ...policy,
-    networkArgsFor: () => appleNetworkArgs(),
+    networkArgsFor: () => barbackNetworkArgsFor() ?? appleNetworkArgs(),
   }),
 );
 
