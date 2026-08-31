@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "baseBranch": "main",
+  "verification": {
+    "argv": [
+      "sh",
+      "-c",
+      "corepack pnpm install --frozen-lockfile && corepack pnpm run typecheck"
+    ],
+    "timeoutMs": 180000
+  },
+  "maxReviewReturns": 3,
+  "agentCatalog": {
+    "argv": [
+      "node",
+      "/Users/server/Development/shiborgi/agentpatrol/bin/agentpatrol.js",
+      "resolve",
+      "--json"
+    ],
+    "timeoutMs": 10000,
+    "defaults": {
+      "spec": {
+        "agent": "agentpatrol/architect",
+        "version": "1.0.0"
+      },
+      "plan": {
+        "agent": "agentpatrol/tech-lead",
+        "version": "1.0.0"
+      },
+      "build": {
+        "agent": "agentpatrol/developer",
+        "version": "1.0.0"
+      },
+      "spec-review": {
+        "agent": "agentpatrol/chief-architect",
+        "version": "1.0.0"
+      },
+      "plan-review": {
+        "agent": "agentpatrol/principal-engineer",
+        "version": "1.0.0"
+      },
+      "build-review": {
+        "agent": "agentpatrol/qa-engineer",
+        "version": "1.0.0"
+      },
+      "ship": {
+        "agent": "agentpatrol/release-manager",
+        "version": "1.0.0"
+      }
+    }
+  },
+  "contextPatrol": {
+    "argv": [
+      "node",
+      "/Users/server/Development/shiborgi/contextpatrol/bin/contextpatrol.js",
+      "query",
+      "--input",
+      "-"
+    ],
+    "timeoutMs": 60000,
+    "profiles": {
+      "orientation": {
+        "facets": [
+          "structure",
+          "symbols",
+          "relations"
+        ],
+        "maxOutputBytes": 9600
+      },
+      "implementation": {
+        "facets": [
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 14400
+      },
+      "impact": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "tests"
+        ],
+        "maxOutputBytes": 14400
+      },
+      "readiness": {
+        "facets": [
+          "changes",
+          "tests",
+          "relations"
+        ],
+        "maxOutputBytes": 9600
+      },
+      "orientation-wide": {
+        "facets": [
+          "structure",
+          "symbols",
+          "relations"
+        ],
+        "maxOutputBytes": 19200
+      },
+      "orientation-grounded": {
+        "facets": [
+          "structure",
+          "symbols",
+          "relations",
+          "source"
+        ],
+        "maxOutputBytes": 19200
+      },
+      "implementation-deep": {
+        "facets": [
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 24000
+      },
+      "impact-wide": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "tests"
+        ],
+        "maxOutputBytes": 24000
+      },
+      "impact-grounded": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 24000
+      },
+      "spec-survey": {
+        "facets": [
+          "structure",
+          "symbols"
+        ],
+        "maxOutputBytes": 12800
+      },
+      "spec-deep": {
+        "facets": [
+          "structure",
+          "symbols",
+          "relations"
+        ],
+        "maxOutputBytes": 19200
+      },
+      "plan-impact": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "tests"
+        ],
+        "maxOutputBytes": 19200
+      },
+      "plan-deep": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 24000
+      },
+      "build-work": {
+        "facets": [
+          "symbols",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 19200
+      },
+      "build-deep": {
+        "facets": [
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 24000
+      },
+      "review-diff": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations"
+        ],
+        "maxOutputBytes": 12800
+      },
+      "review-grounded": {
+        "facets": [
+          "changes",
+          "symbols",
+          "relations",
+          "source",
+          "tests"
+        ],
+        "maxOutputBytes": 19200
+      }
+    },
+    "defaults": {
+      "spec": "spec-survey",
+      "spec-review": "spec-deep",
+      "plan": "plan-impact",
+      "plan-review": "review-diff",
+      "build": "build-work",
+      "build-review": "review-grounded",
+      "ship": "readiness"
+    }
+  },
+  "remote": {
+    "github": {
+      "enabled": true,
+      "repo": "shiborgi/bartender",
+      "gitRemote": "origin",
+      "tokenEnv": "GITHUB_TOKEN",
+      "wiki": true,
+      "milestones": true,
+      "issues": true,
+      "comments": true,
+      "pushMain": true
+    }
+  }
+}
