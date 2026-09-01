@@ -89,11 +89,13 @@ registerSessionDriver(
   DEFAULT_DRIVER_KIND,
   (policy) => new DockerSessionDriver({ ...policy, networkArgsFor: dockerNetworkArgs }),
 );
-registerSessionDriver('apple-container', (policy) =>
-  new AppleContainerSessionDriver({
-    ...policy,
-    networkArgsFor: () => barbackNetworkArgsFor() ?? appleNetworkArgs(),
-  }),
+registerSessionDriver(
+  'apple-container',
+  (policy) =>
+    new AppleContainerSessionDriver({
+      ...policy,
+      networkArgsFor: () => barbackNetworkArgsFor() ?? appleNetworkArgs(),
+    }),
 );
 
 export function configuredDriverKind(env: NodeJS.ProcessEnv = process.env): DriverKind {

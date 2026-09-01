@@ -132,12 +132,7 @@ export function appleNetworkArgs(): string[] {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanoclaw-hosts-'));
   const hosts = path.join(dir, 'hosts');
   fs.writeFileSync(hosts, `127.0.0.1 localhost\n${gateway} host.docker.internal gateway.docker.internal\n`);
-  return [
-    '--network',
-    EGRESS_NETWORK,
-    '--mount',
-    `type=bind,source=${hosts},target=/etc/hosts,readonly`,
-  ];
+  return ['--network', EGRESS_NETWORK, '--mount', `type=bind,source=${hosts},target=/etc/hosts,readonly`];
 }
 
 /** Is the OneCLI gateway currently attached to the egress network? */

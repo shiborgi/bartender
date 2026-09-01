@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  OneCliCapabilityError,
-  compareVersions,
-  detectPrivateDnsRouteCapability,
-} from './onecli-capability.js';
+import { OneCliCapabilityError, compareVersions, detectPrivateDnsRouteCapability } from './onecli-capability.js';
 
 describe('compareVersions', () => {
   it('orders dotted numeric versions', () => {
@@ -44,9 +40,9 @@ describe('detectPrivateDnsRouteCapability', () => {
   });
 
   it('fails closed when the capability version is missing or mismatched', () => {
-    expect(() =>
-      detectPrivateDnsRouteCapability({ 'onecli-gateway': '1.41.0', 'onecli-cli': '2.2.5' }),
-    ).toThrow(OneCliCapabilityError);
+    expect(() => detectPrivateDnsRouteCapability({ 'onecli-gateway': '1.41.0', 'onecli-cli': '2.2.5' })).toThrow(
+      OneCliCapabilityError,
+    );
     expect(() =>
       detectPrivateDnsRouteCapability({ 'onecli-gateway': '1.41.0', 'onecli-cli': '2.2.5', 'private-dns-route': '2' }),
     ).toThrow(OneCliCapabilityError);
