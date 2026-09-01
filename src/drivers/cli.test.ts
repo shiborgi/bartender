@@ -10,7 +10,7 @@ vi.mock('child_process', () => ({
   })),
 }));
 
-import { spawn } from 'child_process';
+import { execFileSync, spawn } from 'child_process';
 
 import { realCli } from './cli.js';
 
@@ -29,5 +29,18 @@ describe('realCli.start', () => {
       ['start', '--attach', 'ncl-x'],
       expect.objectContaining({ detached: true }),
     );
+  });
+});
+
+describe('realCli.run', () => {
+  it('reports stderr without exposing command arguments when a command fails', () => {
+    const failure = Object.assign(new Error('Command failed: docker create --env SECRET=value'), {
+      stderr: Buffer.from('container: invalid mount'),
+    });
+    vi.mocked(execFileSync).mockImplementationOnce(() => {
+      throw failure;
+    });
+
+    expect(() => realCli('docker').run(['create', '--env', 'SECRET=value'])).toThrow('container: invalid mount');
   });
 });

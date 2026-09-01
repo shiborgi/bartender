@@ -21,7 +21,7 @@ ARG INSTALL_CJK_FONTS=false
 # all users. The global Node CLIs (claude-code, agent-browser) are
 # pinned in cli-tools.json so a skill can add one with a json-merge; Bun (the
 # runtime) is pinned here because it installs from a different source.
-ARG BUN_VERSION=1.3.12
+ARG BUN_VERSION=1.4.0
 
 # ---- System dependencies -----------------------------------------------------
 # tini: correct PID 1 / signal forwarding so outbound.db writes finalize on
@@ -48,8 +48,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         ca-certificates \
         curl \
         git \
+        iptables \
         tini \
         unzip \
+        util-linux \
     && if [ "$INSTALL_CJK_FONTS" = "true" ]; then \
         apt-get install -y --no-install-recommends fonts-noto-cjk; \
        fi \
@@ -77,7 +79,7 @@ WORKDIR /app
 COPY agent-runner/package.json agent-runner/bun.lock ./
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    bun install --frozen-lockfile --network-concurrency 1
 
 # ---- pnpm + global Node CLIs -------------------------------------------------
 # Most stable first, most frequently bumped last. Bumping claude-code
@@ -120,7 +122,8 @@ RUN printf '#!/bin/sh\nexec bun /app/src/cli/ncl.ts "$@"\n' > /usr/local/bin/ncl
 
 # ---- Entrypoint --------------------------------------------------------------
 COPY entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+COPY egress-entrypoint.sh /app/egress-entrypoint.sh
+RUN chmod +x /app/entrypoint.sh /app/egress-entrypoint.sh
 
 # ---- Workspace + permissions -------------------------------------------------
 RUN mkdir -p /workspace/group /workspace/extra && \

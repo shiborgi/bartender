@@ -4,6 +4,8 @@
  * Same seam as DockerSessionDriver: Cli injection, validateSpec, withSessionEvents.
  * Network topology for shared-private is WAVE-1.3; this driver realizes the session object.
  */
+import fs from 'fs';
+
 import { realCli, validateRuntimeName, type Cli, type SupervisedProcess } from './cli.js';
 import { agentContainerName, assertMountSourcesExist, envArgs, labelArgs } from './docker-driver.js';
 import { log } from '../log.js';
@@ -14,6 +16,7 @@ import {
   labelsForKey,
   specInvalid,
   validateSpec,
+  type ContainerSpec,
   type DriverCapabilities,
   type MountPolicy,
   type MountSpec,
@@ -114,8 +117,8 @@ export class AppleContainerSessionDriver implements SessionDriver {
     const args = ['create', '--rm', '--name', name];
     args.push(...labelArgs(labelsForKey(spec.key, 'agent', { ...spec.labels, ...(agent.labels ?? {}) })));
     args.push(...resourceArgs(spec));
-    args.push(...hardeningArgs());
-    args.push(...userArgs(spec));
+    args.push(...hardeningArgs(agent));
+    args.push(...(requiresEgressBootstrap(agent) ? ['--user', '0:0', '--uid', '0', '--gid', '0'] : userArgs(spec)));
     args.push(...envArgs(agent.env));
     args.push(...envArgs(agent.contributedEnv ?? {}));
     args.push(...mountArgs(agent.mounts));
@@ -153,7 +156,7 @@ export class AppleContainerSessionDriver implements SessionDriver {
   }
 
   #networkArgsFor(spec: SessionSpec): string[] {
-    if (spec.network === 'none') return [];
+    if (spec.network === 'none') return ['--network', 'none'];
     return this.#networkArgs?.(spec) ?? [];
   }
 
@@ -371,10 +374,14 @@ class AppleContainerHandle implements SessionHandle {
   }
 
   execSpec(command: string[]): SessionExecSpec {
+    const runAs = this.pendingSpec?.runAs ?? { uid: 1000, gid: 1000 };
+    const identity = `${runAs.uid}:${runAs.gid}`;
     return {
       bin: 'container',
-      argsTty: ['exec', '-it', this.name, ...command],
-      argsPlain: ['exec', '-i', this.name, ...command],
+      // Apple exec otherwise defaults to root. The session init process has
+      // already dropped privileges, but diagnostics must not reintroduce them.
+      argsTty: ['exec', '-it', '--user', identity, this.name, ...command],
+      argsPlain: ['exec', '-i', '--user', identity, this.name, ...command],
     };
   }
 }
@@ -431,7 +438,14 @@ export function appleStatePhase(state: string): SessionPhase {
   return 'terminal';
 }
 
-export function hardeningArgs(): string[] {
+export function requiresEgressBootstrap(agent: ContainerSpec): boolean {
+  return agent.contributedEnv?.NANOCLAW_EGRESS_LOCKDOWN === 'barback-v1';
+}
+
+export function hardeningArgs(agent?: ContainerSpec): string[] {
+  if (agent && requiresEgressBootstrap(agent)) {
+    return ['--cap-drop', 'ALL', '--cap-add', 'NET_ADMIN', '--cap-add', 'SETUID', '--cap-add', 'SETGID', '--init'];
+  }
   return ['--cap-drop', 'ALL', '--init'];
 }
 
@@ -455,11 +469,44 @@ export function userArgs(spec: SessionSpec): string[] {
   ];
 }
 
+function isDirectoryMount(hostPath: string): boolean {
+  try {
+    return fs.statSync(hostPath).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function coveredByDirectoryMount(containerPath: string, directoryMounts: readonly MountSpec[]): boolean {
+  return directoryMounts.some((parent) => {
+    const prefix = parent.containerPath.endsWith('/') ? parent.containerPath : `${parent.containerPath}/`;
+    return containerPath.startsWith(prefix);
+  });
+}
+
 export function mountArgs(mounts: readonly MountSpec[]): string[] {
-  return mounts.flatMap((m) => [
-    '--mount',
-    `type=bind,source=${m.hostPath},target=${m.containerPath}${m.mode === 'ro' ? ',readonly' : ''}`,
-  ]);
+  const directoryMounts = mounts.filter((m) => isDirectoryMount(m.hostPath));
+  const args: string[] = [];
+  for (const m of directoryMounts) {
+    args.push(
+      '--mount',
+      `type=bind,source=${m.hostPath},target=${m.containerPath}${m.mode === 'ro' ? ',readonly' : ''}`,
+    );
+  }
+  for (const m of mounts) {
+    if (isDirectoryMount(m.hostPath)) continue;
+    // Apple virtiofs bind-mounts directories only. A file already visible
+    // through a parent directory mount can still be marked read-only.
+    if (m.mode === 'ro' && coveredByDirectoryMount(m.containerPath, directoryMounts)) {
+      args.push('--read-only-path', m.containerPath);
+      continue;
+    }
+    log.warn('Skipping Apple file bind; virtiofs requires a directory', {
+      hostPath: m.hostPath,
+      containerPath: m.containerPath,
+    });
+  }
+  return args;
 }
 
 function errorMessage(error: unknown): string {
@@ -492,5 +539,13 @@ export function normalizeAppleContainerError(error: unknown): Error & SessionFai
   if (/no space left|cannot allocate memory/i.test(message)) {
     return asFailureError({ kind: 'resources-exhausted', retryable: true });
   }
-  return asFailureError({ kind: 'unknown', retryable: false, opaqueRef: `apple-container-${Date.now()}` });
+  // Preserve the CLI's stderr in the error message. The opaque reference alone
+  // makes Apple Container realization failures impossible to diagnose.
+  const failure = asFailureError({
+    kind: 'unknown',
+    retryable: false,
+    opaqueRef: `apple-container-${Date.now()}`,
+  });
+  failure.message = `${failure.message}: ${message}`;
+  return failure;
 }

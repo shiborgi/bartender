@@ -16,7 +16,15 @@ vi.mock('../log.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), fatal: vi.fn() },
 }));
 
-vi.mock('fs', () => ({ default: { existsSync: vi.fn(() => true) } }));
+vi.mock('fs', () => ({
+  default: {
+    existsSync: vi.fn(() => true),
+    statSync: vi.fn((p: string) => {
+      const directory = !/\.[A-Za-z0-9]+$/.test(p);
+      return { isDirectory: () => directory, isFile: () => !directory };
+    }),
+  },
+}));
 
 import fs from 'fs';
 
@@ -70,7 +78,8 @@ describe('Apple Container argv', () => {
     expect(joined).toContain('--gid 1000');
     expect(joined).toContain('--shm-size 1024m');
     expect(args).toContain('type=bind,source=/install/data/v2-sessions/g1/s1,target=/workspace');
-    expect(args).toContain('type=bind,source=/install/container/CLAUDE.md,target=/app/CLAUDE.md,readonly');
+    expect(args).toContain('type=bind,source=/install/container/agent-runner/src,target=/app/src,readonly');
+    expect(joined).not.toContain('/install/container/CLAUDE.md');
     expect(cli.bin).toBe('container');
   });
 
@@ -81,6 +90,34 @@ describe('Apple Container argv', () => {
     expect(args).toContain('nanoclaw-egress');
     expect(args).toContain('type=bind,source=/tmp/hosts,target=/etc/hosts,readonly');
     expect(cli.calls.some((call) => call.args[0] === 'network' && cli.bin === 'docker')).toBe(false);
+  });
+
+  it('realizes network none explicitly rather than falling back to runtime default networking', async () => {
+    await driver().prepare(fixtureSpec({ network: 'none' }));
+    const args = createArgs();
+    expect(args).toContain('--network');
+    expect(args[args.indexOf('--network') + 1]).toBe('none');
+  });
+
+  it('uses a root-only bootstrap posture for Barback then keeps diagnostic exec non-root', async () => {
+    const spec = fixtureSpec({
+      containers: [
+        {
+          ...fixtureSpec().containers[0],
+          contributedEnv: { NANOCLAW_EGRESS_LOCKDOWN: 'barback-v1' },
+          command: ['/app/egress-entrypoint.sh'],
+          args: [],
+        },
+      ],
+    });
+    const handle = await driver().prepare(spec);
+    const args = createArgs();
+    expect(args).toContain('--cap-add');
+    expect(args).toContain('NET_ADMIN');
+    expect(args).toContain('--user');
+    expect(args[args.indexOf('--user') + 1]).toBe('0:0');
+    expect(handle.execSpec(['id']).argsPlain).toContain('--user');
+    expect(handle.execSpec(['id']).argsPlain).toContain('501:1000');
   });
 
   it('refuses a missing mount source before create', async () => {
@@ -116,7 +153,9 @@ describe('runtime-unavailable', () => {
 describe('JSON parse', () => {
   it('extracts the IPv4 gateway from Apple network inspect JSON', () => {
     expect(
-      appleNetworkGateway(JSON.stringify({ configuration: { ipv4Gateway: '192.168.64.1', subnet: '192.168.64.0/24' } })),
+      appleNetworkGateway(
+        JSON.stringify({ configuration: { ipv4Gateway: '192.168.64.1', subnet: '192.168.64.0/24' } }),
+      ),
     ).toBe('192.168.64.1');
     expect(appleNetworkGateway('{"gateway":"not-an-ip"}')).toBeNull();
   });

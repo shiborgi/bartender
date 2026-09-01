@@ -6,3 +6,5 @@
  * rewritten to install a gateway.
  */
 import './onecli.js';
+import './stub.js';
+import './barback.js';

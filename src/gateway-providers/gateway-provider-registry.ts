@@ -31,11 +31,14 @@ import type { ContainerSpec, DriverCapabilities, MountSpec, SessionKey } from '.
  * - `containers` are auxiliary containers (a per-session proxy). Never role
  *   'agent'. Gated on the driver's `capabilities().auxiliaryContainers` before
  *   a spec is ever built.
+ * - `labels` stamp gateway topology generations on the realized session so a
+ *   changed allowlist destination recycles an otherwise live container.
  */
 export interface GatewayContribution {
   env?: Record<string, string>;
   mounts?: MountSpec[];
   containers?: ContainerSpec[];
+  labels?: Record<string, string>;
 }
 
 export interface GatewayProviderInput {

@@ -18,10 +18,13 @@ function makeConfig(overrides: Record<string, unknown> = {}) {
     dnsServers: ['192.0.2.10'],
     dnsSearch: ['barback.internal'],
     dnsGeneration: 'generation-1',
+    gatewayAddress: '192.0.2.20',
+    egressGeneration: 'egress-generation-1',
     generatedAt: '2026-08-31T00:00:00.000Z',
     validUntil: '2099-01-01T00:00:00.000Z',
     apiBaseUrl: 'http://barback.internal:8080/v1',
     mcpUrl: 'http://barback.internal:8080/mcp',
+    hostProbeUrl: 'http://192.0.2.20:8080/health/live',
     credentialMode: 'onecli-proxy',
     ...overrides,
   };
@@ -53,6 +56,8 @@ describe('loadBarbackClientConfig', () => {
     expect(config.dnsServers).toEqual(['192.0.2.10']);
     expect(config.dnsSearch).toEqual(['barback.internal']);
     expect(config.dnsGeneration).toBe('generation-1');
+    expect(config.gatewayAddress).toBe('192.0.2.20');
+    expect(config.egressGeneration).toBe('egress-generation-1');
     expect(config.generatedAt).toBe('2026-08-31T00:00:00.000Z');
     expect(config.validUntil).toBe('2099-01-01T00:00:00.000Z');
     expect(config.apiBaseUrl).toBe('http://barback.internal:8080/v1');
@@ -124,6 +129,11 @@ describe('loadBarbackClientConfig', () => {
     expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(
       /mcpUrl must not contain an IP literal/,
     );
+  });
+
+  it('rejects a non-IPv4 firewall destination', () => {
+    const file = writeConfig(makeConfig({ gatewayAddress: 'not-an-ip' }));
+    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(/gatewayAddress/);
   });
 
   it('never reads or emits a credential', () => {

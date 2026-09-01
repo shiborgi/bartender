@@ -33,7 +33,6 @@ import { getDb, hasTable } from './db/connection.js';
 import { getSession } from './db/sessions.js';
 import { getSessionDriver, isSessionEventsDriver } from './drivers/index.js';
 import type { SupervisedHandle, SupervisedSnapshot } from './drivers/session-events.js';
-import { barbackDnsGeneration } from './barback-network.js';
 import { DNS_GENERATION_LABEL, GROUP_FOLDER_LABEL, labelValueLegal, specInvalid } from './drivers/types.js';
 import type { ContainerSpec, MountSpec, SessionFailure, SessionSpec } from './drivers/types.js';
 import { getGatewayProvider, type GatewayContribution } from './gateway-providers/index.js';
@@ -55,7 +54,7 @@ import {
   heartbeatPath,
   markContainerRunning,
   markContainerStopped,
-  sessionContextPath,
+  sessionContextDir,
   sessionDir,
   writeSessionContext,
   writeSessionRouting,
@@ -485,8 +484,8 @@ export async function buildMounts(
   // Session workspace: mailbox-selected state plus outbox and heartbeat files.
   mounts.push({ hostPath: sessDir, containerPath: '/workspace', readonly: false, mountClass: 'group-state', scope });
   mounts.push({
-    hostPath: sessionContextPath(agentGroup.id, session.id),
-    containerPath: '/app/.nanoclaw-session.json',
+    hostPath: sessionContextDir(agentGroup.id, session.id),
+    containerPath: '/app/.nanoclaw-session',
     readonly: true,
     mountClass: 'group-state',
     scope,
@@ -699,6 +698,12 @@ export function composeSessionSpec(input: ComposeSessionSpecInput): SessionSpec 
   // image, so it is writable by any uid under both drivers.
   const runAs = hostUid != null && hostUid !== 0 ? { uid: hostUid, gid: hostGid ?? hostUid } : undefined;
   if (runAs) env.HOME = '/home/node';
+  const egressLockdown = gateway.env?.NANOCLAW_EGRESS_LOCKDOWN === 'barback-v1';
+  if (egressLockdown) {
+    if (!runAs) throw specInvalid('Barback egress lockdown requires a non-root host identity');
+    env.NANOCLAW_EGRESS_UID = String(runAs.uid);
+    env.NANOCLAW_EGRESS_GID = String(runAs.gid);
+  }
 
   const agent: ContainerSpec = {
     role: 'agent',
@@ -707,8 +712,8 @@ export function composeSessionSpec(input: ComposeSessionSpecInput): SessionSpec 
     env,
     // Run the v2 entry point directly (no tsc, no stdin). The driver maps the
     // 'standard' posture's PID-1 requirement onto this: Docker adds `--init`.
-    command: ['bash', '-c'],
-    args: ['exec bun run /app/src/index.ts'],
+    command: egressLockdown ? ['/app/egress-entrypoint.sh'] : ['bash', '-c'],
+    args: egressLockdown ? [] : ['exec bun run /app/src/index.ts'],
     mounts: mergeMounts(toMountSpecs(mounts, agentGroup.id), gateway.mounts ?? []),
     contributedEnv,
   };
@@ -734,7 +739,10 @@ export function composeSessionSpec(input: ComposeSessionSpecInput): SessionSpec 
     );
   }
 
-  const dnsGeneration = barbackDnsGeneration();
+  // Gateway contribution is the single configuration snapshot for this spawn.
+  // Reloading Barback config here could stamp a different allowlist generation
+  // from the one used to create the process environment.
+  const dnsGeneration = gateway.labels?.[DNS_GENERATION_LABEL];
   const labels: Record<string, string> = {
     'nanoclaw-container-name': containerName,
     [GROUP_FOLDER_LABEL]: agentGroup.folder,

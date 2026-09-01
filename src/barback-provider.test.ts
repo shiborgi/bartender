@@ -15,17 +15,26 @@ const config: BarbackClientConfig = {
   dnsServers: ['192.0.2.10'],
   dnsSearch: ['barback.internal'],
   dnsGeneration: 'generation-1',
+  gatewayAddress: '192.0.2.20',
+  egressGeneration: 'egress-generation-1',
   generatedAt: '2026-08-31T00:00:00.000Z',
   validUntil: '2099-01-01T00:00:00.000Z',
   apiBaseUrl: 'http://barback.internal:8080/v1',
   mcpUrl: 'http://barback.internal:8080/mcp',
+  hostProbeUrl: 'http://192.0.2.20:8080/health/live',
   credentialMode: 'onecli-proxy',
 };
 
 describe('barbackProviderEnv', () => {
   it('injects apiBaseUrl into an OpenAI-compatible provider', () => {
     const env = barbackProviderEnv(config, 'opencode');
-    expect(env.OPENAI_BASE_URL).toBe('http://barback.internal:8080/v1');
+    expect(env).toMatchObject({
+      OPENCODE_PROVIDER: 'openai',
+      OPENCODE_MODEL: 'openai/code-default',
+      ANTHROPIC_BASE_URL: 'http://192.0.2.20:8080/v1',
+      NANOCLAW_BARBACK_MCP_URL: 'http://192.0.2.20:8080/mcp',
+      NANOCLAW_EGRESS_HOST: '192.0.2.20',
+    });
   });
 
   it('fails configuration for an unsupported (Anthropic-only) provider', () => {

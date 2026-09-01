@@ -10,39 +10,33 @@ const config: BarbackClientConfig = {
   dnsServers: ['192.0.2.10'],
   dnsSearch: ['barback.internal'],
   dnsGeneration: 'generation-1',
+  gatewayAddress: '192.0.2.20',
+  egressGeneration: 'egress-generation-1',
   generatedAt: '2026-08-31T00:00:00.000Z',
   validUntil: '2026-08-31T01:00:00.000Z',
   apiBaseUrl: 'http://barback.internal:8080/v1',
   mcpUrl: 'http://barback.internal:8080/mcp',
+  hostProbeUrl: 'http://192.0.2.20:8080/health/live',
   credentialMode: 'onecli-proxy',
 };
 
 describe('probeBarback', () => {
-  it('resolves against dnsServers and verifies reachability', async () => {
-    const resolve4 = vi.fn().mockResolvedValue(['192.0.2.20']);
-    const fetchImpl = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }));
-    await expect(probeBarback(config, { resolve4, fetchImpl })).resolves.toBeUndefined();
-    expect(resolve4).toHaveBeenCalledWith('barback.internal');
-    expect(fetchImpl).toHaveBeenCalledWith('http://barback.internal:8080/v1', { method: 'GET' });
-  });
-
-  it('fails closed when DNS resolution fails', async () => {
-    const resolve4 = vi.fn().mockRejectedValue(new Error('ENOTFOUND'));
-    await expect(probeBarback(config, { resolve4 })).rejects.toBeInstanceOf(BarbackProbeError);
+  it('verifies host-side liveness without resolving private guest DNS', async () => {
+    const probeImpl = vi.fn().mockResolvedValue(undefined);
+    await expect(probeBarback(config, { probeImpl })).resolves.toBeUndefined();
+    expect(probeImpl).toHaveBeenCalledWith('http://192.0.2.20:8080/health/live', 5000);
   });
 
   it('fails closed when reachability returns non-2xx', async () => {
-    const resolve4 = vi.fn().mockResolvedValue(['192.0.2.20']);
-    const fetchImpl = vi.fn().mockResolvedValue(new Response('err', { status: 503 }));
-    await expect(probeBarback(config, { resolve4, fetchImpl })).rejects.toBeInstanceOf(
+    const probeImpl = vi.fn().mockRejectedValue(new Error('curl: (22) HTTP 503'));
+    await expect(probeBarback(config, { probeImpl })).rejects.toBeInstanceOf(
       BarbackProbeError,
     );
   });
 
   it('fails closed on timeout', async () => {
-    const resolve4 = vi.fn().mockResolvedValue(['192.0.2.20']);
-    const fetchImpl = vi.fn().mockImplementation(() => new Promise(() => {}));
-    await expect(probeBarback(config, { resolve4, fetchImpl, timeoutMs: 20 })).rejects.toBeInstanceOf(
+    const probeImpl = vi.fn().mockRejectedValue(new Error('curl: (28) Operation timed out'));
+    await expect(probeBarback(config, { probeImpl, timeoutMs: 20 })).rejects.toBeInstanceOf(
       BarbackProbeError,
     );
   });

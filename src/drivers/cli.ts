@@ -31,12 +31,22 @@ export function realCli(bin: string): Cli {
   return {
     bin,
     run(args, opts) {
-      return execFileSync(bin, args, {
-        stdio: 'pipe',
-        input: opts?.input,
-        timeout: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-        maxBuffer: 16 * 1024 * 1024,
-      }).toString();
+      try {
+        return execFileSync(bin, args, {
+          stdio: 'pipe',
+          input: opts?.input,
+          timeout: opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+          maxBuffer: 16 * 1024 * 1024,
+        }).toString();
+      } catch (error) {
+        // Node's default error message embeds the complete argv, including
+        // container environment values. Report runtime stderr instead.
+        const stderr =
+          error && typeof error === 'object' && 'stderr' in error && Buffer.isBuffer(error.stderr)
+            ? error.stderr.toString().trim()
+            : '';
+        throw new Error(stderr || `Command '${bin}' failed`);
+      }
     },
     start(args, opts) {
       const child = spawn(bin, args, {

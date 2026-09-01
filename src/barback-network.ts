@@ -9,6 +9,7 @@ import {
   type BarbackClientConfig,
 } from './barback-client-config.js';
 import { appleNetworkGateway } from './egress-lockdown.js';
+import { readEnvFile } from './env.js';
 
 /** Raised when the Barback topology cannot be joined safely. */
 export class BarbackNetworkError extends Error {
@@ -18,11 +19,18 @@ export class BarbackNetworkError extends Error {
   }
 }
 
+/** Barback topology is non-secret configuration, so a service may source it from .env. */
+export function barbackClientEnvironment(env: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+  if (env !== process.env) return env;
+  const file = readEnvFile(['BARBACK_CLIENT_CONFIG_PATH', 'NANOCLAW_EGRESS_NETWORK']);
+  return { ...file, ...env };
+}
+
 /**
  * Build the session create argv for the Barback-owned NAT network. Pure and
  * testable: it takes the validated client-config, the `container network
  * inspect` output, and the configured egress network name, and returns the
- * `--network`/`--dns`/`--dns-search`/hosts-mount args. It never invokes
+ * `--network`/`--no-dns`/hosts-mount args. It never invokes
  * `network create` and never applies the internal-network validation.
  */
 export function barbackNetworkArgs(
@@ -36,17 +44,18 @@ export function barbackNetworkArgs(
     );
   }
 
-  const args = ['--network', config.network];
-  for (const server of config.dnsServers) args.push('--dns', server);
-  for (const domain of config.dnsSearch) args.push('--dns-search', domain);
+  const args = ['--network', config.network, '--no-dns'];
 
   const gateway = appleNetworkGateway(inspectOutput);
-  if (gateway) {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanoclaw-barback-hosts-'));
-    const hosts = path.join(dir, 'hosts');
-    fs.writeFileSync(hosts, `127.0.0.1 localhost\n${gateway} host.docker.internal gateway.docker.internal\n`);
-    args.push('--mount', `type=bind,source=${hosts},target=/etc/hosts,readonly`);
+  if (!gateway || gateway !== config.hostGateway) {
+    throw new BarbackNetworkError('Barback network gateway does not match the client-config');
   }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nanoclaw-barback-hosts-'));
+  const hosts = path.join(dir, 'hosts');
+  // DNS is deliberately absent from the guest. Only the canonical gateway
+  // name resolves, and the firewall independently pins its private address.
+  fs.writeFileSync(hosts, `127.0.0.1 localhost\n${config.gatewayAddress} barback.internal\n`);
+  args.push('--mount', `type=bind,source=${dir},target=/etc/barback-hosts,readonly`);
 
   return args;
 }
@@ -66,6 +75,7 @@ export function barbackNetworkArgsFor(
       timeout: 15000,
     }),
 ): string[] | null {
+  env = barbackClientEnvironment(env) as NodeJS.ProcessEnv;
   let config: BarbackClientConfig;
   try {
     config = loadBarbackClientConfig(env);
@@ -81,13 +91,14 @@ export function barbackNetworkArgsFor(
 }
 
 /**
- * Return the current Barback DNS generation, or null when no client-config is
- * configured. Used to stamp the dns-generation label on session containers and
- * to compare against a running session's stamped generation during adoption.
+ * Return the generation for the guest egress policy, or null when no client
+ * config is configured. The legacy name remains because existing call sites
+ * and labels use DNS_GENERATION_LABEL.
  */
 export function barbackDnsGeneration(env: NodeJS.ProcessEnv = process.env): string | null {
+  env = barbackClientEnvironment(env) as NodeJS.ProcessEnv;
   try {
-    return loadBarbackClientConfig(env).dnsGeneration;
+    return loadBarbackClientConfig(env).egressGeneration;
   } catch (error) {
     if (error instanceof BarbackClientConfigError && error.message.includes('BARBACK_CLIENT_CONFIG_PATH is not set')) {
       return null;

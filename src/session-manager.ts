@@ -36,9 +36,14 @@ export function sessionDir(agentGroupId: string, sessionId: string): string {
   return path.join(sessionsBaseDir(), agentGroupId, sessionId);
 }
 
+/** Host-owned runner context directory. Apple Container can only bind-mount directories. */
+export function sessionContextDir(agentGroupId: string, sessionId: string): string {
+  return path.join(DATA_DIR, 'v2-sessions', agentGroupId, '.context', sessionId);
+}
+
 /** Host-owned runner context, kept outside the agent-writable session directory. */
 export function sessionContextPath(agentGroupId: string, sessionId: string): string {
-  return path.join(DATA_DIR, 'v2-sessions', agentGroupId, '.context', `${sessionId}.json`);
+  return path.join(sessionContextDir(agentGroupId, sessionId), 'session.json');
 }
 
 /** Materialize the immutable context the runner receives at startup. */
@@ -208,7 +213,7 @@ export function initSessionFolder(agentGroupId: string, sessionId: string): void
 /** Destroy one session's implementation-owned mailbox after its container stops. */
 export async function destroySessionMailbox(agentGroupId: string, sessionId: string): Promise<void> {
   await getAgentMailbox().destroy(mailboxKey(agentGroupId, sessionId));
-  fs.rmSync(sessionContextPath(agentGroupId, sessionId), { force: true });
+  fs.rmSync(sessionContextDir(agentGroupId, sessionId), { recursive: true, force: true });
 }
 
 /**

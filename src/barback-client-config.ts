@@ -15,10 +15,15 @@ export interface BarbackClientConfig {
   dnsServers: string[];
   dnsSearch: string[];
   dnsGeneration: string;
+  /** Private IPv4 of the Barback HTTP gateway, for the guest egress allowlist. */
+  gatewayAddress: string;
+  /** Changes whenever the firewall destination can change. */
+  egressGeneration: string;
   generatedAt: string;
   validUntil: string;
   apiBaseUrl: string;
   mcpUrl: string;
+  hostProbeUrl: string;
   credentialMode: string;
 }
 
@@ -122,10 +127,13 @@ export function loadBarbackClientConfig(
     dnsServers: requireStringArray(doc.dnsServers, 'dnsServers'),
     dnsSearch: requireStringArray(doc.dnsSearch, 'dnsSearch'),
     dnsGeneration: requireString(doc.dnsGeneration, 'dnsGeneration'),
+    gatewayAddress: requireString(doc.gatewayAddress, 'gatewayAddress'),
+    egressGeneration: requireString(doc.egressGeneration, 'egressGeneration'),
     generatedAt: requireString(doc.generatedAt, 'generatedAt'),
     validUntil: requireString(doc.validUntil, 'validUntil'),
     apiBaseUrl: requireString(doc.apiBaseUrl, 'apiBaseUrl'),
     mcpUrl: requireString(doc.mcpUrl, 'mcpUrl'),
+    hostProbeUrl: requireString(doc.hostProbeUrl, 'hostProbeUrl'),
     credentialMode: requireString(doc.credentialMode, 'credentialMode'),
   };
 
@@ -142,6 +150,21 @@ export function loadBarbackClientConfig(
   }
   if (isIpLiteralUrl(config.mcpUrl)) {
     throw new BarbackClientConfigError('client-config mcpUrl must not contain an IP literal');
+  }
+  if (isIP(config.gatewayAddress) !== 4) {
+    throw new BarbackClientConfigError('client-config gatewayAddress must be an IPv4 address');
+  }
+  const api = new URL(config.apiBaseUrl);
+  const mcp = new URL(config.mcpUrl);
+  if (api.hostname !== 'barback.internal' || api.port !== '8080' || api.pathname !== '/v1') {
+    throw new BarbackClientConfigError('client-config apiBaseUrl must be http://barback.internal:8080/v1');
+  }
+  if (mcp.hostname !== 'barback.internal' || mcp.port !== '8080' || mcp.pathname !== '/mcp') {
+    throw new BarbackClientConfigError('client-config mcpUrl must be http://barback.internal:8080/mcp');
+  }
+  const probe = new URL(config.hostProbeUrl);
+  if (probe.hostname !== config.gatewayAddress || probe.port !== '8080' || probe.pathname !== '/health/live') {
+    throw new BarbackClientConfigError('client-config hostProbeUrl must target gatewayAddress on http port 8080 /health/live');
   }
 
   return config;

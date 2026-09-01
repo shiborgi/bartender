@@ -97,7 +97,16 @@ async function main(): Promise<void> {
     },
   };
 
+  const barbackMcpUrl = process.env.NANOCLAW_BARBACK_MCP_URL;
+  if (barbackMcpUrl) {
+    mcpServers.barback = { type: 'http', url: barbackMcpUrl };
+    log('Additional MCP server: barback (HTTP)');
+  }
+
   for (const [name, serverConfig] of Object.entries(config.mcpServers)) {
+    // Barback is the sole remote MCP boundary. Persisted HTTP entries must not
+    // bypass its policy, while local stdio servers remain available.
+    if (barbackMcpUrl && serverConfig.type === 'http') continue;
     // Plugin-shipped servers get ${PLUGIN_ROOT}/${PLUGIN_DATA} expansion and
     // the two injected env vars; everything else passes through untouched.
     mcpServers[name] = resolvePluginServer(serverConfig);

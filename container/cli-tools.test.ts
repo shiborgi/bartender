@@ -47,7 +47,7 @@ describe('cli-tools manifest', () => {
     // Only what the agent cannot function without: a browser it drives, and the
     // provider CLI it runs. Everything else is opt-in — a tool nobody asked for
     // is bytes in every image, on every machine, for everyone.
-    for (const required of ['agent-browser', '@anthropic-ai/claude-code']) {
+    for (const required of ['agent-browser', 'opencode-ai']) {
       expect(names).toContain(required);
     }
   });

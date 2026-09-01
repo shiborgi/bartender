@@ -17,9 +17,9 @@ export class BarbackProviderError extends Error {
 const OPENAI_COMPATIBLE_PROVIDERS = new Set(['opencode']);
 
 /**
- * Build the provider environment that routes model traffic through Barback's
- * OpenAI-compatible API. Returns the env to inject (only the non-secret
- * apiBaseUrl) or throws for a provider that is not OpenAI-compatible.
+ * Build the OpenCode environment that routes model traffic through Barback's
+ * OpenAI-compatible API. These values contain no credential: host-relay
+ * authentication is derived from the isolated Barback network.
  */
 export function barbackProviderEnv(
   config: BarbackClientConfig,
@@ -30,7 +30,17 @@ export function barbackProviderEnv(
       `provider "${providerName}" is not OpenAI-compatible and cannot route through Barback`,
     );
   }
-  return { OPENAI_BASE_URL: config.apiBaseUrl };
+  return {
+    OPENCODE_PROVIDER: 'openai',
+    OPENCODE_MODEL: 'openai/code-default',
+    ANTHROPIC_BASE_URL: `http://${config.gatewayAddress}:8080/v1`,
+    NANOCLAW_BARBACK_MCP_URL: `http://${config.gatewayAddress}:8080/mcp`,
+    // These are non-secret bootstrap inputs. Apple Container grants network
+    // administration only to the short-lived entrypoint that consumes them.
+    NANOCLAW_EGRESS_LOCKDOWN: 'barback-v1',
+    NANOCLAW_EGRESS_HOST: config.gatewayAddress,
+    NANOCLAW_EGRESS_PORT: '8080',
+  };
 }
 
 /**

@@ -17,10 +17,13 @@ const config: BarbackClientConfig = {
   dnsServers: ['192.0.2.10', '192.0.2.11'],
   dnsSearch: ['barback.internal'],
   dnsGeneration: 'generation-1',
+  gatewayAddress: '192.0.2.20',
+  egressGeneration: 'egress-generation-1',
   generatedAt: '2026-08-31T00:00:00.000Z',
   validUntil: '2099-01-01T00:00:00.000Z',
   apiBaseUrl: 'http://barback.internal:8080/v1',
   mcpUrl: 'http://barback.internal:8080/mcp',
+  hostProbeUrl: 'http://192.0.2.20:8080/health/live',
   credentialMode: 'onecli-proxy',
 };
 
@@ -57,25 +60,20 @@ describe('barbackNetworkArgs', () => {
     );
   });
 
-  it('injects --dns for each dnsServers entry and --dns-search for the search domain', () => {
+  it('disables DNS and pins only the Barback gateway hostname', () => {
     const args = barbackNetworkArgs(config, inspectOutput, undefined);
-    expect(args).toContain('--dns');
-    expect(args).toContain('192.0.2.10');
-    expect(args).toContain('192.0.2.11');
-    expect(args).toContain('--dns-search');
-    expect(args).toContain('barback.internal');
+    expect(args).toContain('--no-dns');
+    expect(args).not.toContain('--dns');
+    const mount = args.find((a) => a.startsWith('type=bind,source='));
+    expect(mount).toContain('target=/etc/barback-hosts,readonly');
+    const source = mount!.match(/source=([^,]+)/)?.[1];
+    expect(fs.readFileSync(`${source}/hosts`, 'utf8')).toContain('192.0.2.20 barback.internal');
   });
 
-  it('maps host.docker.internal and gateway.docker.internal to hostGateway without rewriting app URLs', () => {
-    const args = barbackNetworkArgs(config, inspectOutput, undefined);
-    const mount = args.find((a) => a.startsWith('type=bind,source='));
-    expect(mount).toBeDefined();
-    const source = mount!.match(/source=([^,]+)/)?.[1];
-    expect(source).toBeDefined();
-    const hosts = fs.readFileSync(source!, 'utf8');
-    expect(hosts).toContain('192.0.2.1 host.docker.internal gateway.docker.internal');
-    // No application URL is rewritten to an IP literal.
-    expect(args.join(' ')).not.toContain('http://192.0.2.1');
+  it('fails closed when the inspected gateway differs from client-config', () => {
+    expect(() => barbackNetworkArgs(config, JSON.stringify({ networks: [{ gateway: '192.0.2.99' }] }), undefined)).toThrow(
+      /gateway does not match/,
+    );
   });
 });
 
@@ -97,7 +95,6 @@ describe('barbackNetworkArgsFor', () => {
     expect(inspected).toEqual(['barback']);
     expect(args).toContain('--network');
     expect(args).toContain('barback');
-    expect(args).toContain('--dns');
-    expect(args).toContain('192.0.2.10');
+    expect(args).toContain('--no-dns');
   });
 });
