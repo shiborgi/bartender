@@ -29,15 +29,11 @@ describe('probeBarback', () => {
 
   it('fails closed when reachability returns non-2xx', async () => {
     const probeImpl = vi.fn().mockRejectedValue(new Error('curl: (22) HTTP 503'));
-    await expect(probeBarback(config, { probeImpl })).rejects.toBeInstanceOf(
-      BarbackProbeError,
-    );
+    await expect(probeBarback(config, { probeImpl })).rejects.toBeInstanceOf(BarbackProbeError);
   });
 
   it('fails closed on timeout', async () => {
     const probeImpl = vi.fn().mockRejectedValue(new Error('curl: (28) Operation timed out'));
-    await expect(probeBarback(config, { probeImpl, timeoutMs: 20 })).rejects.toBeInstanceOf(
-      BarbackProbeError,
-    );
+    await expect(probeBarback(config, { probeImpl, timeoutMs: 20 })).rejects.toBeInstanceOf(BarbackProbeError);
   });
 });

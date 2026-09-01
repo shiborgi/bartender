@@ -22,19 +22,14 @@ export interface ProbeOptions {
  * macOS; guest-path reachability is separately verified after the firewall is
  * installed by egress-entrypoint.sh.
  */
-export async function probeBarback(
-  config: BarbackClientConfig,
-  options: ProbeOptions = {},
-): Promise<void> {
+export async function probeBarback(config: BarbackClientConfig, options: ProbeOptions = {}): Promise<void> {
   const timeoutMs = options.timeoutMs ?? 5000;
   const probeImpl = options.probeImpl ?? probeWithCurl;
 
   try {
     await probeImpl(config.hostProbeUrl, timeoutMs);
   } catch (err) {
-    throw new BarbackProbeError(
-      `Barback reachability failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    throw new BarbackProbeError(`Barback reachability failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

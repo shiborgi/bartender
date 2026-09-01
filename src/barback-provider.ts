@@ -21,10 +21,7 @@ const OPENAI_COMPATIBLE_PROVIDERS = new Set(['opencode']);
  * OpenAI-compatible API. These values contain no credential: host-relay
  * authentication is derived from the isolated Barback network.
  */
-export function barbackProviderEnv(
-  config: BarbackClientConfig,
-  providerName: string,
-): Record<string, string> {
+export function barbackProviderEnv(config: BarbackClientConfig, providerName: string): Record<string, string> {
   if (!OPENAI_COMPATIBLE_PROVIDERS.has(providerName)) {
     throw new BarbackProviderError(
       `provider "${providerName}" is not OpenAI-compatible and cannot route through Barback`,

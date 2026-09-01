@@ -164,7 +164,9 @@ export function loadBarbackClientConfig(
   }
   const probe = new URL(config.hostProbeUrl);
   if (probe.hostname !== config.gatewayAddress || probe.port !== '8080' || probe.pathname !== '/health/live') {
-    throw new BarbackClientConfigError('client-config hostProbeUrl must target gatewayAddress on http port 8080 /health/live');
+    throw new BarbackClientConfigError(
+      'client-config hostProbeUrl must target gatewayAddress on http port 8080 /health/live',
+    );
   }
 
   return config;

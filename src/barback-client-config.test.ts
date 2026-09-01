@@ -2,10 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  BarbackClientConfigError,
-  loadBarbackClientConfig,
-} from './barback-client-config.js';
+import { BarbackClientConfigError, loadBarbackClientConfig } from './barback-client-config.js';
 
 const dirs: string[] = [];
 
@@ -70,15 +67,15 @@ describe('loadBarbackClientConfig', () => {
   });
 
   it('fails closed when the path is not absolute', () => {
-    expect(() =>
-      loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: 'relative/client-config.json' }),
-    ).toThrow(/absolute/);
+    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: 'relative/client-config.json' })).toThrow(
+      /absolute/,
+    );
   });
 
   it('fails closed when the file is absent', () => {
-    expect(() =>
-      loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: '/nonexistent/client-config.json' }),
-    ).toThrow(BarbackClientConfigError);
+    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: '/nonexistent/client-config.json' })).toThrow(
+      BarbackClientConfigError,
+    );
   });
 
   it('fails closed when the document is malformed JSON', () => {
@@ -87,9 +84,7 @@ describe('loadBarbackClientConfig', () => {
     const file = path.join(dir, 'client-config.json');
     fs.writeFileSync(file, '{ not json');
     fs.chmodSync(file, 0o600);
-    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(
-      /not valid JSON/,
-    );
+    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(/not valid JSON/);
   });
 
   it('fails closed when the document is expired', () => {
@@ -101,9 +96,7 @@ describe('loadBarbackClientConfig', () => {
 
   it('rejects a group- or world-writable file', () => {
     const file = writeConfig(makeConfig(), 0o666);
-    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(
-      /group- or world-writable/,
-    );
+    expect(() => loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file })).toThrow(/group- or world-writable/);
   });
 
   it('rejects a symlink', () => {
@@ -137,9 +130,7 @@ describe('loadBarbackClientConfig', () => {
   });
 
   it('never reads or emits a credential', () => {
-    const file = writeConfig(
-      makeConfig({ token: 'secret', bearerKey: 'secret', oauthToken: 'secret' }),
-    );
+    const file = writeConfig(makeConfig({ token: 'secret', bearerKey: 'secret', oauthToken: 'secret' }));
     const config = loadBarbackClientConfig({ BARBACK_CLIENT_CONFIG_PATH: file });
     expect(JSON.stringify(config)).not.toContain('secret');
   });

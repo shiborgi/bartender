@@ -2,11 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  BarbackNetworkError,
-  barbackNetworkArgs,
-  barbackNetworkArgsFor,
-} from './barback-network.js';
+import { BarbackNetworkError, barbackNetworkArgs, barbackNetworkArgsFor } from './barback-network.js';
 import type { BarbackClientConfig } from './barback-client-config.js';
 
 const config: BarbackClientConfig = {
@@ -55,9 +51,7 @@ describe('barbackNetworkArgs', () => {
   });
 
   it('fails closed when NANOCLAW_EGRESS_NETWORK mismatches the client-config network', () => {
-    expect(() => barbackNetworkArgs(config, inspectOutput, 'other-network')).toThrow(
-      BarbackNetworkError,
-    );
+    expect(() => barbackNetworkArgs(config, inspectOutput, 'other-network')).toThrow(BarbackNetworkError);
   });
 
   it('disables DNS and pins only the Barback gateway hostname', () => {
@@ -71,9 +65,9 @@ describe('barbackNetworkArgs', () => {
   });
 
   it('fails closed when the inspected gateway differs from client-config', () => {
-    expect(() => barbackNetworkArgs(config, JSON.stringify({ networks: [{ gateway: '192.0.2.99' }] }), undefined)).toThrow(
-      /gateway does not match/,
-    );
+    expect(() =>
+      barbackNetworkArgs(config, JSON.stringify({ networks: [{ gateway: '192.0.2.99' }] }), undefined),
+    ).toThrow(/gateway does not match/);
   });
 });
 
@@ -85,13 +79,10 @@ describe('barbackNetworkArgsFor', () => {
   it('inspects the declared network and returns the Barback args', () => {
     const file = writeConfig();
     const inspected: string[] = [];
-    const args = barbackNetworkArgsFor(
-      { BARBACK_CLIENT_CONFIG_PATH: file },
-      (network) => {
-        inspected.push(network);
-        return inspectOutput;
-      },
-    );
+    const args = barbackNetworkArgsFor({ BARBACK_CLIENT_CONFIG_PATH: file }, (network) => {
+      inspected.push(network);
+      return inspectOutput;
+    });
     expect(inspected).toEqual(['barback']);
     expect(args).toContain('--network');
     expect(args).toContain('barback');

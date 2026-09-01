@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  BarbackProviderError,
-  barbackProviderEnv,
-  synthesizeBarbackMcp,
-} from './barback-provider.js';
+import { BarbackProviderError, barbackProviderEnv, synthesizeBarbackMcp } from './barback-provider.js';
 import type { BarbackClientConfig } from './barback-client-config.js';
 import type { McpServerConfig } from './container-config.js';
 
