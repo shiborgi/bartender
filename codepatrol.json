@@ -59,32 +59,6 @@
     ],
     "timeoutMs": 60000,
     "profiles": {
-      "orientation": {
-        "facets": [
-          "structure",
-          "symbols",
-          "relations"
-        ],
-        "maxOutputBytes": 9600
-      },
-      "implementation": {
-        "facets": [
-          "symbols",
-          "relations",
-          "source",
-          "tests"
-        ],
-        "maxOutputBytes": 14400
-      },
-      "impact": {
-        "facets": [
-          "changes",
-          "symbols",
-          "relations",
-          "tests"
-        ],
-        "maxOutputBytes": 14400
-      },
       "readiness": {
         "facets": [
           "changes",
@@ -93,57 +67,14 @@
         ],
         "maxOutputBytes": 9600
       },
-      "orientation-wide": {
-        "facets": [
-          "structure",
-          "symbols",
-          "relations"
-        ],
-        "maxOutputBytes": 19200
-      },
-      "orientation-grounded": {
-        "facets": [
-          "structure",
-          "symbols",
-          "relations",
-          "source"
-        ],
-        "maxOutputBytes": 19200
-      },
-      "implementation-deep": {
-        "facets": [
-          "symbols",
-          "relations",
-          "source",
-          "tests"
-        ],
-        "maxOutputBytes": 24000
-      },
-      "impact-wide": {
-        "facets": [
-          "changes",
-          "symbols",
-          "relations",
-          "tests"
-        ],
-        "maxOutputBytes": 24000
-      },
-      "impact-grounded": {
-        "facets": [
-          "changes",
-          "symbols",
-          "relations",
-          "source",
-          "tests"
-        ],
-        "maxOutputBytes": 24000
-      },
       "spec-survey": {
         "facets": [
           "structure",
-          "symbols"
+          "symbols",
+          "source"
         ],
-        "maxOutputBytes": 12800
+        "maxOutputBytes": 12800,
+        "sourceDepth": "signatures"
       },
       "spec-deep": {
         "facets": [
@@ -193,7 +124,8 @@
         "facets": [
           "changes",
           "symbols",
-          "relations"
+          "relations",
+          "tests"
         ],
         "maxOutputBytes": 12800
       },
@@ -211,7 +143,7 @@
     "defaults": {
       "spec": "spec-survey",
       "spec-review": "spec-deep",
-      "plan": "plan-impact",
+      "plan": "plan-deep",
       "plan-review": "review-diff",
       "build": "build-work",
       "build-review": "review-grounded",
