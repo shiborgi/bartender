@@ -182,6 +182,20 @@ Key files:
 - `container/agent-runner/` — Bun agent-runner: poll loop, MCP tools, provider abstraction
 - `groups/<folder>/` — per-agent-group filesystem (`CLAUDE.md`, skills, container config)
 
+## Barback host-relay sessions
+
+When Barback is the egress/MCP gateway (client-config present), sessions use the realized host-relay contract:
+
+- OpenCode is the only session provider.
+- Guest authentication is host-relay by client IP — never a guest `BARBACK_CLIENT_KEY` or Bearer token.
+- NAT join with no guest DNS (only the gateway name resolves via the injected hosts mount).
+- Egress allowlist is only the gateway private IPv4 address on port 8080.
+- Host health probe is against the gateway IP (`/health/live`).
+- Container binds must be directories only (Apple virtiofs cannot serve individual files).
+- MCP is available only through the Barback gateway; no direct upstream MCP addresses.
+
+See `src/barback-client-config.ts`, `src/gateway-providers/barback.ts`, and `src/drivers/apple-container-driver.ts` for the enforcement points.
+
 ## FAQ
 
 **Why these container runtimes?**
