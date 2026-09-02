@@ -2,7 +2,7 @@ import { loadBarbackClientConfig } from '../barback-client-config.js';
 import { barbackClientEnvironment } from '../barback-network.js';
 import { barbackProviderEnv } from '../barback-provider.js';
 import { probeBarback } from '../barback-probe.js';
-import { DNS_GENERATION_LABEL } from '../drivers/types.js';
+import { EGRESS_GENERATION_LABEL } from '../drivers/types.js';
 
 import { registerGatewayProvider } from './gateway-provider-registry.js';
 
@@ -16,7 +16,7 @@ registerGatewayProvider('barback', () => ({
     await probeBarback(config);
     return {
       env: barbackProviderEnv(config, 'opencode'),
-      labels: { [DNS_GENERATION_LABEL]: config.egressGeneration },
+      labels: { [EGRESS_GENERATION_LABEL]: config.egressGeneration },
     };
   },
 }));

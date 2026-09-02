@@ -92,8 +92,8 @@ export function barbackNetworkArgsFor(
 
 /**
  * Return the generation for the guest egress policy, or null when no client
- * config is configured. The legacy name remains because existing call sites
- * and labels use DNS_GENERATION_LABEL.
+ * config is configured. Legacy name retained for callers that only use it
+ * to detect Barback presence (egressGeneration value is returned).
  */
 export function barbackDnsGeneration(env: NodeJS.ProcessEnv = process.env): string | null {
   env = barbackClientEnvironment(env) as NodeJS.ProcessEnv;

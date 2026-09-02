@@ -10,7 +10,7 @@ import { realCli, validateRuntimeName, type Cli, type SupervisedProcess } from '
 import { agentContainerName, assertMountSourcesExist, envArgs, labelArgs } from './docker-driver.js';
 import { log } from '../log.js';
 import {
-  DNS_GENERATION_LABEL,
+  EGRESS_GENERATION_LABEL,
   LABELS,
   asFailureError,
   labelsForKey,
@@ -270,11 +270,11 @@ export class AppleContainerSessionDriver implements SessionDriver {
     ) {
       // A stale session (stamped generation differs from the current document)
       // must not be adopted; it is recycled instead.
-      const currentGeneration = spec.labels[DNS_GENERATION_LABEL];
-      if (currentGeneration && labels[DNS_GENERATION_LABEL] !== currentGeneration) {
-        log.info('Session DNS generation is stale; recycling', {
+      const currentGeneration = spec.labels[EGRESS_GENERATION_LABEL];
+      if (currentGeneration && labels[EGRESS_GENERATION_LABEL] !== currentGeneration) {
+        log.info('Session egress generation is stale; recycling', {
           containerName: name,
-          stamped: labels[DNS_GENERATION_LABEL],
+          stamped: labels[EGRESS_GENERATION_LABEL],
           current: currentGeneration,
         });
         this.#recycle(name);

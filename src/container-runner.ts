@@ -33,7 +33,7 @@ import { getDb, hasTable } from './db/connection.js';
 import { getSession } from './db/sessions.js';
 import { getSessionDriver, isSessionEventsDriver } from './drivers/index.js';
 import type { SupervisedHandle, SupervisedSnapshot } from './drivers/session-events.js';
-import { DNS_GENERATION_LABEL, GROUP_FOLDER_LABEL, labelValueLegal, specInvalid } from './drivers/types.js';
+import { EGRESS_GENERATION_LABEL, GROUP_FOLDER_LABEL, labelValueLegal, specInvalid } from './drivers/types.js';
 import type { ContainerSpec, MountSpec, SessionFailure, SessionSpec } from './drivers/types.js';
 import { getGatewayProvider, type GatewayContribution } from './gateway-providers/index.js';
 import { initGroupFilesystem } from './group-init.js';
@@ -742,12 +742,12 @@ export function composeSessionSpec(input: ComposeSessionSpecInput): SessionSpec 
   // Gateway contribution is the single configuration snapshot for this spawn.
   // Reloading Barback config here could stamp a different allowlist generation
   // from the one used to create the process environment.
-  const dnsGeneration = gateway.labels?.[DNS_GENERATION_LABEL];
+  const egressGeneration = gateway.labels?.[EGRESS_GENERATION_LABEL];
   const labels: Record<string, string> = {
     'nanoclaw-container-name': containerName,
     [GROUP_FOLDER_LABEL]: agentGroup.folder,
   };
-  if (dnsGeneration) labels[DNS_GENERATION_LABEL] = dnsGeneration;
+  if (egressGeneration) labels[EGRESS_GENERATION_LABEL] = egressGeneration;
 
   return {
     key: { installSlug: INSTALL_SLUG, agentGroupId: agentGroup.id, sessionId: session.id },

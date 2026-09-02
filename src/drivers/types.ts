@@ -329,13 +329,19 @@ export const LABELS = {
 } as const;
 
 /**
- * Barback DNS-generation label. Stamped on every session container at
- * creation and compared during adoption: a session whose stamped generation
- * differs from the current client-config document is stale and must not be
- * reused. Deliberately outside `LABELS` (like GROUP_FOLDER_LABEL) because it
- * is not part of the four-key handle-rebuild contract.
+ * Barback DNS-generation label (legacy name for the dnsGeneration field in
+ * client-config). Not used for session stamping/adoption.
  */
 export const DNS_GENERATION_LABEL = 'io.shiborgi.barback.dns-generation';
+
+/**
+ * Barback egress-generation label. Stamped on every session container at
+ * creation from client-config.egressGeneration and compared during adoption:
+ * a session whose stamped generation differs from the current client-config
+ * is stale (e.g. egress destinations/firewall changed) and must not be
+ * reused; the driver recycles it. Deliberately outside `LABELS`.
+ */
+export const EGRESS_GENERATION_LABEL = 'io.shiborgi.barback.egress-generation';
 
 /**
  * The group-folder label (D9). Deliberately NOT part of `LABELS`: adoption

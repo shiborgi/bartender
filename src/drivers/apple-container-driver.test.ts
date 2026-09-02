@@ -9,7 +9,7 @@ import {
 } from './apple-container-driver.js';
 import { FakeCli } from './fake-cli.js';
 import { FIXTURE_POLICY, fixtureSpec } from './spec-fixture.js';
-import { DNS_GENERATION_LABEL, LABELS, type SessionEvent } from './types.js';
+import { EGRESS_GENERATION_LABEL, LABELS, type SessionEvent } from './types.js';
 import { appleNetworkGateway, appleNetworkIsInternal } from '../egress-lockdown.js';
 
 vi.mock('../log.js', () => ({
@@ -281,13 +281,13 @@ describe('watchSessions', () => {
   });
 });
 
-describe('DNS generation stamping and adoption', () => {
-  it('stamps the dns-generation label on the create argv', async () => {
-    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-1' } });
+describe('Egress generation stamping and adoption', () => {
+  it('stamps the egress-generation label on the create argv', async () => {
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [EGRESS_GENERATION_LABEL]: 'egress-gen-1' } });
     await driver().prepare(spec);
     const args = createArgs();
     expect(args).toContain(`--label`);
-    expect(args).toContain(`${DNS_GENERATION_LABEL}=generation-1`);
+    expect(args).toContain(`${EGRESS_GENERATION_LABEL}=egress-gen-1`);
   });
 
   it('does not adopt a session whose stamped generation differs from the current document', async () => {
@@ -299,12 +299,12 @@ describe('DNS generation stamping and adoption', () => {
             [LABELS.install]: 'spike',
             [LABELS.group]: 'g1',
             [LABELS.session]: 's1',
-            [DNS_GENERATION_LABEL]: 'generation-old',
+            [EGRESS_GENERATION_LABEL]: 'egress-old',
           },
         }),
       },
     ];
-    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-new' } });
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [EGRESS_GENERATION_LABEL]: 'egress-new' } });
     await driver().prepare(spec);
     // A stale session is recycled (stop + rm) and recreated, not adopted.
     expect(cli.callMatching(/^stop /)).toBeDefined();
@@ -321,12 +321,12 @@ describe('DNS generation stamping and adoption', () => {
             [LABELS.install]: 'spike',
             [LABELS.group]: 'g1',
             [LABELS.session]: 's1',
-            [DNS_GENERATION_LABEL]: 'generation-1',
+            [EGRESS_GENERATION_LABEL]: 'egress-gen-1',
           },
         }),
       },
     ];
-    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [DNS_GENERATION_LABEL]: 'generation-1' } });
+    const spec = fixtureSpec({ labels: { ...fixtureSpec().labels, [EGRESS_GENERATION_LABEL]: 'egress-gen-1' } });
     await driver().prepare(spec);
     expect(cli.callMatching(/^create /)).toBeUndefined();
   });
