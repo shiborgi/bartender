@@ -60,6 +60,7 @@
         "email",
         "https://www.googleapis.com/auth/drive",
         "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/gmail.readonly",
         "https://www.googleapis.com/auth/tasks"
       ]
     }
@@ -74,6 +75,13 @@
     },
     "google-calendar": {
       "builtin": "google-calendar",
+      "auth": {
+        "kind": "oauth2",
+        "profile": "google-primary"
+      }
+    },
+    "google-gmail": {
+      "builtin": "google-gmail",
       "auth": {
         "kind": "oauth2",
         "profile": "google-primary"

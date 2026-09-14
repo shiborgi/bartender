@@ -5,6 +5,8 @@ For each agent group, remove every Google logical MCP server and restart it:
 ```bash
 ncl groups config remove-mcp-server --id <group-id> --name google-drive
 ncl groups config remove-mcp-server --id <group-id> --name google-calendar
+ncl groups config remove-mcp-server --id <group-id> --name google-gmail
+ncl groups config remove-mcp-server --id <group-id> --name google-tasks
 ncl groups restart --id <group-id>
 ```
 

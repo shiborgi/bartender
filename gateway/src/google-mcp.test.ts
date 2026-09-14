@@ -27,6 +27,12 @@ function recorder(bodies: unknown[] = [{}]): { calls: GoogleRequest[]; tokens: s
   return { calls, tokens, fetcher };
 }
 
+const gmailData = (value: string): string => Buffer.from(value).toString('base64url');
+
+function toolBody(response: any): any {
+  return JSON.parse(response.result.content[0].text);
+}
+
 async function call(server: string, name: string, args: Record<string, unknown>, fetcher: Fetcher): Promise<any> {
   return handleBuiltinMcp(
     server,
@@ -162,6 +168,128 @@ describe('drive', () => {
     const { calls, fetcher } = recorder();
     await call('google-drive', 'search_files', { query: "name contains 'x'", pageSize: 5000 }, fetcher);
     expect(calls[0]!.query!.pageSize).toBe(100);
+  });
+});
+
+describe('gmail', () => {
+  it('maps Gmail search syntax, paging, and the read-only spam option', async () => {
+    const { calls, fetcher } = recorder([{ messages: [] }]);
+    await call(
+      'google-gmail',
+      'search_messages',
+      {
+        query: 'from:alerts@example.com is:unread',
+        labelId: 'INBOX',
+        maxResults: 900,
+        includeSpamTrash: true,
+        pageToken: 'next-page',
+      },
+      fetcher,
+    );
+    expect(calls[0]).toEqual({
+      method: 'GET',
+      url: 'https://gmail.googleapis.com/gmail/v1/users/me/messages',
+      query: {
+        q: 'from:alerts@example.com is:unread',
+        labelIds: 'INBOX',
+        maxResults: 500,
+        pageToken: 'next-page',
+        includeSpamTrash: true,
+      },
+    });
+  });
+
+  it('decodes a structured HTML email into text without exposing markup', async () => {
+    const { calls, fetcher } = recorder([
+      {
+        id: 'm1',
+        threadId: 't1',
+        historyId: '101',
+        labelIds: ['INBOX', 'UNREAD'],
+        payload: {
+          mimeType: 'multipart/alternative',
+          headers: [
+            { name: 'From', value: 'Alerts <alerts@example.com>' },
+            { name: 'Subject', value: 'Pedido aprovado' },
+          ],
+          parts: [
+            {
+              mimeType: 'text/html',
+              headers: [{ name: 'Content-Type', value: 'text/html; charset=UTF-8' }],
+              body: {
+                data: gmailData(
+                  '<html><head><style>.x{color:red}</style></head><body><table><tr><th>Pedido</th><th>Total</th></tr><tr><td>ABC-42</td><td>R$ 90 &amp; frete</td></tr></table><script>steal()</script></body></html>',
+                ),
+              },
+            },
+          ],
+        },
+      },
+    ]);
+
+    const response = await call('google-gmail', 'get_message', { messageId: 'm1' }, fetcher);
+    const body = toolBody(response);
+    expect(calls[0]!.query).toEqual({ format: 'full' });
+    expect(body).toMatchObject({
+      id: 'm1',
+      threadId: 't1',
+      from: 'Alerts <alerts@example.com>',
+      subject: 'Pedido aprovado',
+      labelIds: ['INBOX', 'UNREAD'],
+    });
+    expect(body.text).toContain('Pedido\tTotal');
+    expect(body.text).toContain('ABC-42\tR$ 90 & frete');
+    expect(body.text).not.toContain('<table>');
+    expect(body.text).not.toContain('steal()');
+  });
+
+  it('prefers a plain-text alternative and omits attachment contents', async () => {
+    const { fetcher } = recorder([
+      {
+        id: 'm2',
+        snippet: 'fallback',
+        payload: {
+          mimeType: 'multipart/mixed',
+          parts: [
+            { mimeType: 'text/plain', body: { data: gmailData('Readable body') } },
+            {
+              mimeType: 'text/plain',
+              filename: 'secret.txt',
+              body: { data: gmailData('Attachment contents') },
+            },
+            { mimeType: 'text/html', body: { data: gmailData('<b>HTML body</b>') } },
+          ],
+        },
+      },
+    ]);
+    const body = toolBody(await call('google-gmail', 'get_message', { messageId: 'm2' }, fetcher));
+    expect(body.text).toBe('Readable body');
+    expect(body.htmlText).toBe('HTML body');
+    expect(JSON.stringify(body)).not.toContain('Attachment contents');
+  });
+
+  it('normalizes every message in a thread', async () => {
+    const { fetcher } = recorder([
+      {
+        id: 't1',
+        historyId: '103',
+        messages: [
+          { id: 'm1', payload: { mimeType: 'text/plain', body: { data: gmailData('First') } } },
+          { id: 'm2', payload: { mimeType: 'text/html', body: { data: gmailData('<p>Second</p>') } } },
+        ],
+      },
+    ]);
+    const body = toolBody(await call('google-gmail', 'get_thread', { threadId: 't1' }, fetcher));
+    expect(body.messages.map((message: any) => message.text)).toEqual(['First', 'Second']);
+  });
+
+  it('marks an expired history cursor so a caller can perform a bounded resync', async () => {
+    const failing: Fetcher = async () => {
+      throw new GoogleApiError('HistoryId is too old', 404);
+    };
+    const response = await call('google-gmail', 'list_history', { historyId: '10' }, failing);
+    expect(toolBody(response)).toEqual({ historyExpired: true });
+    expect(response.result.isError).toBeUndefined();
   });
 });
 

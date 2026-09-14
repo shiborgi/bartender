@@ -1,5 +1,5 @@
 /**
- * The built-in Google MCP servers: Drive, Calendar and Tasks, served by the
+ * The built-in Google MCP servers: Drive, Calendar, Gmail and Tasks, served by the
  * gateway itself rather than proxied to a hosted endpoint.
  *
  * Why in-process. The gateway is already the only component holding a Google
@@ -14,6 +14,7 @@
  * failing later.
  */
 import { callGoogle, DRIVE_API, DRIVE_UPLOAD_API, GoogleApiError, type Fetcher } from './google-api.js';
+import { handleGmailTool } from './gmail-mcp.js';
 import { BUILTIN_TOOLS, type ToolDefinition } from './google-tools.js';
 
 const PROTOCOL_VERSION = '2025-06-18';
@@ -163,6 +164,10 @@ export async function handleBuiltinMcp(
 
   try {
     const accessToken = await options.accessToken();
+
+    if (serverName === 'google-gmail') {
+      return toolSuccess(message.id, await handleGmailTool(accessToken, toolName, args, definition, fetcher));
+    }
 
     if (serverName === 'google-drive' && toolName === 'read_file_content') {
       const fileId = typeof args.fileId === 'string' ? args.fileId : '';

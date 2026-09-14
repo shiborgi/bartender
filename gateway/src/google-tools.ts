@@ -11,6 +11,7 @@
  * and re-consenting, which is an operator action, not a silent expansion.
  */
 import { CALENDAR_API, DRIVE_API, TASKS_API, type GoogleRequest } from './google-api.js';
+import { GMAIL_TOOLS } from './gmail-mcp.js';
 
 export interface ToolDefinition {
   name: string;
@@ -443,6 +444,7 @@ export const TASKS_TOOLS: ToolDefinition[] = [
 export const BUILTIN_TOOLS: Record<string, ToolDefinition[]> = {
   'google-drive': DRIVE_TOOLS,
   'google-calendar': CALENDAR_TOOLS,
+  'google-gmail': GMAIL_TOOLS,
   'google-tasks': TASKS_TOOLS,
 };
 
