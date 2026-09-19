@@ -64,6 +64,33 @@ describe('Gmail relay filters', () => {
     ).toBeNull();
   });
 
+  it('matches card issuer in the subject and card suffix in the body independently', () => {
+    const cardRule = {
+      id: 'card-final-8520',
+      match: {
+        fromAddresses: ['relay@example.com'],
+        subjectRegex: '^C6 Bank\\s*-\\s*Compra no cr[eé]dito aprovada$',
+        bodyRegex: '(?:^|\\D)8520(?:\\D|$)',
+        labelsAny: ['INBOX'],
+      },
+      template: '{{subject}}\n{{text}}',
+    };
+    expect(
+      renderMatchingMessage(
+        {
+          from: 'relay@example.com',
+          subject: 'C6 Bank - Compra no crédito aprovada',
+          text: 'Compra aprovada no cartão final 8520.',
+          labelIds: ['SENT', 'INBOX'],
+        },
+        [cardRule],
+      ),
+    ).toEqual({
+      ruleId: 'card-final-8520',
+      text: 'C6 Bank - Compra no crédito aprovada\nCompra aprovada no cartão final 8520.',
+    });
+  });
+
   it('rejects an enabled rule without a positive criterion', async () => {
     const { configPath } = await files({
       enabled: true,
