@@ -274,6 +274,12 @@ export async function handleGmailTool(
     if (toolName === 'list_history' && error instanceof GoogleApiError && error.status === 404) {
       return { historyExpired: true };
     }
+    // A message can be deleted between list_history and get_message. Treat
+    // that ordinary race as a consumed tombstone so a poller does not retry
+    // the same missing id forever and block every newer message behind it.
+    if (toolName === 'get_message' && error instanceof GoogleApiError && error.status === 404) {
+      return { id: str(args, 'messageId'), notFound: true };
+    }
     throw error;
   }
 }
