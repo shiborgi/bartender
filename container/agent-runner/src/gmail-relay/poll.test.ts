@@ -91,6 +91,19 @@ describe('Gmail relay filters', () => {
     });
   });
 
+  it('normalizes escaped template newlines for chat delivery', () => {
+    expect(
+      renderMatchingMessage(
+        {
+          from: 'alerts@example.com',
+          subject: 'Novo pedido',
+          text: 'Pedido: A1\nTotal: R$ 10,00',
+        },
+        [{ ...rule, template: 'Pedido {{order}}\\nTotal: {{total}}' }],
+      ),
+    ).toEqual({ ruleId: 'orders', text: 'Pedido A1\nTotal: R$ 10,00' });
+  });
+
   it('rejects an enabled rule without a positive criterion', async () => {
     const { configPath } = await files({
       enabled: true,

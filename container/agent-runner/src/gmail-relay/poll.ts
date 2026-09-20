@@ -245,7 +245,10 @@ export function renderMatchingMessage(
       values[name] = value;
     }
     if (missingRequired) continue;
-    const rendered = rule.template.replace(
+    // JSON authors commonly write "\\n" intending a chat line break. Normalize
+    // the template before interpolation so message values remain untouched.
+    const template = rule.template.replace(/\\n/g, '\n');
+    const rendered = template.replace(
       /\{\{\s*([A-Za-z0-9_]+)\s*\}\}/g,
       (_token, key: string) => values[key] ?? '',
     );
