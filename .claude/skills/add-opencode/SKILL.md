@@ -5,7 +5,7 @@ metadata:
   nanoclaw-provider: opencode
   nanoclaw-provider-label: OpenCode
   nanoclaw-provider-hint: Open-source provider router
-  nanoclaw-provider-offered: 'true'
+  nanoclaw-provider-offered: 'false'
   nanoclaw-provider-image: local-required
 ---
 

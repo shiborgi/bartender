@@ -143,29 +143,4 @@ describe('setup wizard interactive provider choice', () => {
       expect(fixture.upsertEnvVar).not.toHaveBeenCalled();
     },
   );
-
-  it('offers an uninstalled OpenCode skill on a fresh install and applies the selected skill', async () => {
-    vi.stubEnv('NANOCLAW_AGENT_PROVIDER', '');
-    fixture.opencodeInstalled = false;
-    fixture.runAuth.mockRejectedValue(new Error('unexpected Claude authentication'));
-
-    await runWizardUntilExit();
-
-    expect(fixture.brightSelect).toHaveBeenCalledWith(
-      expect.objectContaining({
-        initialValue: 'claude',
-        options: expect.arrayContaining([
-          expect.objectContaining({
-            value: 'opencode',
-            label: 'OpenCode',
-            hint: expect.stringContaining('installs now'),
-          }),
-        ]),
-      }),
-    );
-    expect(fixture.applyProviderSkill).toHaveBeenCalledWith('.claude/skills/add-opencode', process.cwd());
-    expect(fixture.fail).toHaveBeenCalledWith('add-opencode', "Couldn't install opencode.", 'installation boundary');
-    expect(fixture.runAuth).not.toHaveBeenCalled();
-    expect(fixture.upsertEnvVar).not.toHaveBeenCalled();
-  });
 });
