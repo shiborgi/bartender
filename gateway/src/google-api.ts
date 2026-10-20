@@ -92,3 +92,4 @@ export const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 export const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 export const CALENDAR_API = 'https://www.googleapis.com/calendar/v3';
 export const TASKS_API = 'https://tasks.googleapis.com/tasks/v1';
+export const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';

@@ -178,6 +178,34 @@ describe('drive', () => {
     expect(calls[1]!.body).toBe('hello');
   });
 
+  it('writes sheet cells by A1 range as user-entered values', async () => {
+    const { calls, fetcher } = recorder();
+    await call(
+      'google-drive',
+      'update_sheet_values',
+      { spreadsheetId: 's1', range: "'Resumo Semanal'!C5", values: [[1234.5]] },
+      fetcher,
+    );
+    expect(calls[0]!.method).toBe('PUT');
+    expect(calls[0]!.url).toBe(
+      `https://sheets.googleapis.com/v4/spreadsheets/s1/values/${encodeURIComponent("'Resumo Semanal'!C5")}`,
+    );
+    expect(calls[0]!.query).toMatchObject({ valueInputOption: 'USER_ENTERED' });
+    expect(calls[0]!.body).toEqual({ range: "'Resumo Semanal'!C5", majorDimension: 'ROWS', values: [[1234.5]] });
+  });
+
+  it('rejects sheet values that are not rows without calling Google', async () => {
+    const { calls, fetcher } = recorder();
+    const res: any = await call(
+      'google-drive',
+      'update_sheet_values',
+      { spreadsheetId: 's1', range: 'A1', values: [1234.5] },
+      fetcher,
+    );
+    expect(res.result.isError).toBe(true);
+    expect(calls).toHaveLength(0);
+  });
+
   it('caps an oversized pageSize rather than letting Google reject it', async () => {
     const { calls, fetcher } = recorder();
     await call('google-drive', 'search_files', { query: "name contains 'x'", pageSize: 5000 }, fetcher);

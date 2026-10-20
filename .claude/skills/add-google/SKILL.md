@@ -32,6 +32,13 @@ Built-in route names and minimum OAuth scopes:
 | Gmail    | `google-gmail`    | `https://www.googleapis.com/auth/gmail.readonly` |
 | Tasks    | `google-tasks`    | `https://www.googleapis.com/auth/tasks`          |
 
+The Drive route also carries the Google Sheets tools — `get_spreadsheet`,
+`read_sheet_values` and `update_sheet_values` — which address cells by A1
+range through the Sheets API. They need no scope beyond Drive's, but the
+**Google Sheets API** must be enabled in the Cloud project (step 2); until it
+is, every Sheets call fails with "Google Sheets API has not been used in
+project … or it is disabled", while the file tools keep working.
+
 The Gmail adapter is deliberately read-only. It exposes `get_profile`,
 `list_labels`, `search_messages`, `get_message`, `get_thread`, and
 `list_history`. Message reads decode Gmail's MIME/base64url representation,
@@ -40,7 +47,8 @@ not expose raw HTML or attachment contents.
 
 ## 2. Google Cloud prerequisites
 
-Create/select one Google Cloud project, enable the selected product APIs,
+Create/select one Google Cloud project, enable the selected product APIs
+(for the Drive route, both the Google Drive API and the Google Sheets API),
 configure the OAuth consent screen, add the selected account as a test user
 when applicable, and create a **Desktop** OAuth client. Gmail requires the
 Gmail API itself; the built-in route does not require a Workspace MCP preview
