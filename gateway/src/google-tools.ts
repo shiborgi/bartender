@@ -10,7 +10,7 @@
  * profile already requests. Adding one that needs more means adding the scope
  * and re-consenting, which is an operator action, not a silent expansion.
  */
-import { CALENDAR_API, DRIVE_API, TASKS_API, type GoogleRequest } from './google-api.js';
+import { CALENDAR_API, DRIVE_API, SHEETS_API, TASKS_API, type GoogleRequest } from './google-api.js';
 import { GMAIL_TOOLS } from './gmail-mcp.js';
 
 export interface ToolDefinition {
@@ -154,6 +154,89 @@ export const DRIVE_TOOLS: ToolDefinition[] = [
     }),
   },
 ];
+
+/**
+ * Sheets cells are addressed by A1 range (`'Resumo Semanal'!B5:D5`), not by
+ * file bytes, so editing a spreadsheet goes through the Sheets API. The Drive
+ * scope already covers it; the Google Cloud project must have the Sheets API
+ * enabled.
+ */
+function sheetValues(args: Record<string, unknown>): unknown[][] {
+  const values = args.values;
+  if (!Array.isArray(values) || values.length === 0 || !values.every(Array.isArray)) {
+    throw new Error('"values" must be a non-empty array of rows, e.g. [["10/10/2026", 1234.5]]');
+  }
+  return values as unknown[][];
+}
+
+const sheetRangeUrl = (args: Record<string, unknown>): string =>
+  `${SHEETS_API}/${encodeURIComponent(required(args, 'spreadsheetId'))}/values/${encodeURIComponent(required(args, 'range'))}`;
+
+DRIVE_TOOLS.push(
+  {
+    name: 'get_spreadsheet',
+    description: "List a Google Sheet's title and tabs (name, id, row and column count) by file id.",
+    inputSchema: {
+      type: 'object',
+      properties: { spreadsheetId: { type: 'string', description: 'Spreadsheet file id' } },
+      required: ['spreadsheetId'],
+    },
+    request: (args) => ({
+      method: 'GET',
+      url: `${SHEETS_API}/${encodeURIComponent(required(args, 'spreadsheetId'))}`,
+      query: { fields: 'properties.title,sheets.properties(sheetId,title,gridProperties(rowCount,columnCount))' },
+    }),
+  },
+  {
+    name: 'read_sheet_values',
+    description:
+      "Read cells from a Google Sheet by A1 range, e.g. `'Resumo Semanal'!A1:H40`. " +
+      'Returns rows as arrays; trailing empty cells are omitted.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet file id' },
+        range: { type: 'string', description: "A1 range with tab name, e.g. 'Resumo Semanal'!A1:H40" },
+        render: {
+          type: 'string',
+          enum: ['FORMATTED_VALUE', 'UNFORMATTED_VALUE', 'FORMULA'],
+          description: 'FORMATTED_VALUE (default) as displayed, UNFORMATTED_VALUE raw numbers, FORMULA formulas',
+        },
+      },
+      required: ['spreadsheetId', 'range'],
+    },
+    request: (args) => ({
+      method: 'GET',
+      url: sheetRangeUrl(args),
+      query: { valueRenderOption: str(args, 'render') ?? 'FORMATTED_VALUE' },
+    }),
+  },
+  {
+    name: 'update_sheet_values',
+    description:
+      'Overwrite cells in a Google Sheet at an A1 range with rows of values. Values are parsed as if ' +
+      'typed by a user (numbers, dates, formulas). Only the cells in the range change. Returns the written cells.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        spreadsheetId: { type: 'string', description: 'Spreadsheet file id' },
+        range: { type: 'string', description: "A1 range with tab name, e.g. 'Resumo Semanal'!C5" },
+        values: {
+          type: 'array',
+          items: { type: 'array', items: {} },
+          description: 'Rows of cell values, e.g. [[1234.5]] for one cell',
+        },
+      },
+      required: ['spreadsheetId', 'range', 'values'],
+    },
+    request: (args) => ({
+      method: 'PUT',
+      url: sheetRangeUrl(args),
+      query: { valueInputOption: 'USER_ENTERED', includeValuesInResponse: true },
+      body: { range: required(args, 'range'), majorDimension: 'ROWS', values: sheetValues(args) },
+    }),
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Calendar
