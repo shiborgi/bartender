@@ -36,6 +36,7 @@ import {
 import { bearerToken, verifyClientKey } from './identity.js';
 import { googleAccessToken } from './google-oauth.js';
 import { handleBuiltinMcp } from './google-mcp.js';
+import { upstreamFetch } from './upstream-fetch.js';
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 8080);
 
@@ -269,6 +270,10 @@ export async function handle(request: Request): Promise<Response> {
 }
 
 if (import.meta.main) {
+  // Every outbound call — model upstreams, remote MCP servers, Google — goes
+  // over IPv4 first. Installed here, at the process entry, so the test suite
+  // keeps stubbing `fetch` exactly as before. See upstream-fetch.ts for why.
+  globalThis.fetch = upstreamFetch as unknown as typeof fetch;
   Bun.serve({ port: PORT, hostname: '0.0.0.0', fetch: handle, idleTimeout: 240 });
   console.log(`[gateway] listening on :${PORT}`);
 }
