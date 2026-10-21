@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "bartender",
   "version": "1.0.0",
-  "description": "Work assistant: business calendar, documents, and the business financial Book in Lastro.",
+  "description": "Work assistant: business calendar, documents, sales, inventory, and financial records through Yooga.",
   "extensions": {
     "ai.nanoco.nanoclaw": { "agentName": "Bartender" }
   }

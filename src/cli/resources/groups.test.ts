@@ -470,15 +470,15 @@ describe('groups config add-mcp-server --gateway-route', () => {
       {
         id: 'r1',
         command: 'groups-config-add-mcp-server',
-        args: { id: GID, name: 'lastro', 'gateway-route': 'lastro' },
+        args: { id: GID, name: 'yooga', 'gateway-route': 'yooga' },
       },
       { caller: 'host' },
     );
 
     expect(errorMessage(res)).toBeUndefined();
-    expect(JSON.parse((await getContainerConfig(GID))!.mcp_servers).lastro).toEqual({
+    expect(JSON.parse((await getContainerConfig(GID))!.mcp_servers).yooga).toEqual({
       type: 'gateway',
-      route: 'lastro',
+      route: 'yooga',
     });
   });
 });

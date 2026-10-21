@@ -138,7 +138,7 @@ describe('stripUnroutableGatewayServers', () => {
   it('drops a gateway route and keeps everything reachable', () => {
     const config: { mcpServers: Record<string, McpServerConfig> } = {
       mcpServers: {
-        lastro: { type: 'gateway', route: 'lastro' },
+        yooga: { type: 'gateway', route: 'yooga' },
         remote: { type: 'http', url: 'https://mcp.example.com/mcp' },
         localTool: { command: 'x' },
       },
