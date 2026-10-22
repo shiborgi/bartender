@@ -140,11 +140,22 @@ async function run(bin: string, args: string[], timeoutMs = 60_000): Promise<str
   return stdout;
 }
 
-async function inspect(rt: GatewayRuntime, target: string): Promise<string | null> {
+async function inspect(rt: GatewayRuntime, container: string): Promise<string | null> {
   try {
-    return await run(rt.bin, ['inspect', target], 15_000);
+    return await run(rt.bin, ['inspect', container], 15_000);
   } catch {
     return null;
+  }
+}
+
+// `inspect` alone finds containers only on Apple Container; `image inspect`
+// is the spelling both runtimes share for images.
+async function imageExists(rt: GatewayRuntime): Promise<boolean> {
+  try {
+    await run(rt.bin, ['image', 'inspect', rt.image], 15_000);
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -181,7 +192,7 @@ export async function ensureGatewayRunning(rt: GatewayRuntime, secret: string): 
   const state = current ? parseGatewayState(current, rt.egressNetwork) : { running: false, address: null };
   if (state.running && state.address) return state.address;
 
-  if (!(await inspect(rt, rt.image))) throw new GatewayImageMissingError(rt.image);
+  if (!(await imageExists(rt))) throw new GatewayImageMissingError(rt.image);
   await ensureEgressNetwork(rt);
   if (current) {
     await run(rt.bin, ['rm', '--force', rt.name], 30_000).catch(() => undefined);

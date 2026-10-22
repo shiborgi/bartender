@@ -18,7 +18,8 @@ and delete the copied files:
 
 ```bash
 rm -f src/gateway-providers/custom-gateway.ts src/gateway-providers/custom-gateway.test.ts \
-  src/gateway-providers/custom-gateway-container.ts src/gateway-providers/custom-gateway-identity.ts \
+  src/gateway-providers/custom-gateway-container.ts src/gateway-providers/custom-gateway-container.test.ts \
+  src/gateway-providers/custom-gateway-identity.ts \
   src/gateway-providers/custom-gateway-registration.test.ts
 rm -rf container/skills/custom-gateway
 ```

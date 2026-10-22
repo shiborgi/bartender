@@ -33,6 +33,7 @@ under `data/`, so they are in the install's snapshots and never in git.
 payload/src/gateway-providers/custom-gateway.ts -> src/gateway-providers/custom-gateway.ts
 payload/src/gateway-providers/custom-gateway.test.ts -> src/gateway-providers/custom-gateway.test.ts
 payload/src/gateway-providers/custom-gateway-container.ts -> src/gateway-providers/custom-gateway-container.ts
+payload/src/gateway-providers/custom-gateway-container.test.ts -> src/gateway-providers/custom-gateway-container.test.ts
 payload/src/gateway-providers/custom-gateway-identity.ts -> src/gateway-providers/custom-gateway-identity.ts
 payload/src/gateway-providers/custom-gateway-registration.test.ts -> src/gateway-providers/custom-gateway-registration.test.ts
 payload/container/skills/custom-gateway/SKILL.md -> container/skills/custom-gateway/SKILL.md
@@ -65,7 +66,7 @@ pnpm run build
 ```
 
 ```nc:run effect:test
-pnpm exec vitest run src/gateway-providers/custom-gateway.test.ts src/gateway-providers/custom-gateway-registration.test.ts src/gateway-providers/gateway-provider-registry.test.ts .claude/skills/add-custom-gateway/scripts
+pnpm exec vitest run src/gateway-providers/custom-gateway.test.ts src/gateway-providers/custom-gateway-container.test.ts src/gateway-providers/custom-gateway-registration.test.ts src/gateway-providers/gateway-provider-registry.test.ts .claude/skills/add-custom-gateway/scripts
 ```
 
 ```nc:run effect:test
