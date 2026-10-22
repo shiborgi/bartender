@@ -132,8 +132,22 @@ describe('provider', () => {
       secret: () => 'a'.repeat(64),
       ensureRunning: async () => '192.168.131.150',
       probe: async () => false,
+      settleMs: 0,
     });
     await expect(provider.sessions.ensure(INPUT, new AbortController().signal)).rejects.toThrow(/health\/live/);
+  });
+
+  it('waits for a freshly started gateway to start listening', async () => {
+    let probes = 0;
+    const provider = defineCustomGatewayProvider({
+      runtime: () => RT,
+      secret: () => 'a'.repeat(64),
+      ensureRunning: async () => '192.168.131.150',
+      probe: async () => ++probes >= 3,
+      settleMs: 0,
+    });
+    await expect(provider.sessions.ensure(INPUT, new AbortController().signal)).resolves.toBeDefined();
+    expect(probes).toBe(3);
   });
 
   it('reports a live lease unavailable when the gateway stops answering', async () => {

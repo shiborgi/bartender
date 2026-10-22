@@ -72,7 +72,9 @@ export interface CustomGatewayDeps {
   runtime?: () => GatewayRuntime;
   secret?: () => string | undefined;
   ensureRunning?: (rt: GatewayRuntime, secret: string) => Promise<string>;
-  probe?: (address: string) => Promise<boolean>;
+  probe?: (rt: GatewayRuntime) => Promise<boolean>;
+  /** Pause between start-up probes; a fresh container needs a moment to listen. */
+  settleMs?: number;
   intervalMs?: number;
 }
 
@@ -86,10 +88,12 @@ export function defineCustomGatewayProvider(deps: CustomGatewayDeps = {}): Gatew
   const ensureRunning = deps.ensureRunning ?? ensureGatewayRunning;
   const probe = deps.probe ?? probeGatewayHealth;
   const intervalMs = deps.intervalMs ?? HEALTH_INTERVAL_MS;
+  const settleMs = deps.settleMs ?? 500;
 
   const leases = new Map<string, LiveLease>();
   let monitor: NodeJS.Timeout | null = null;
   let address: string | null = null;
+  let current: GatewayRuntime | null = null;
   let unavailable: string | null = null;
 
   /*
@@ -98,14 +102,24 @@ export function defineCustomGatewayProvider(deps: CustomGatewayDeps = {}): Gatew
    * next message re-runs `ensure`, which recreates the container.
    */
   const check = async (): Promise<void> => {
-    if (!address) return;
-    const healthy = await probe(address);
+    if (!current) return;
+    const healthy = await probe(current);
     if (healthy) {
       unavailable = null;
       return;
     }
     unavailable = `the custom gateway at ${address}:${GATEWAY_PORT} stopped answering /health/live`;
     for (const lease of leases.values()) lease.notify?.(unavailable);
+  };
+
+  // A container that has just started is not listening yet: give it a few
+  // probes before refusing the session.
+  const settled = async (rt: GatewayRuntime): Promise<boolean> => {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      if (await probe(rt)) return true;
+      await new Promise((resolve) => setTimeout(resolve, settleMs));
+    }
+    return false;
   };
 
   const startMonitor = (): void => {
@@ -121,7 +135,8 @@ export function defineCustomGatewayProvider(deps: CustomGatewayDeps = {}): Gatew
     }
     const rt = runtime();
     address = await ensureRunning(rt, installSecret);
-    if (!(await probe(address))) {
+    current = rt;
+    if (!(await settled(rt))) {
       throw new Error(
         `the custom gateway at ${address}:${GATEWAY_PORT} is not answering /health/live — refusing to start a ` +
           `session that would have no route to a model or an MCP server. See \`${rt.bin} logs ${rt.name}\`.`,

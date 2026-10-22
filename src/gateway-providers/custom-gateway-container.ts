@@ -211,13 +211,25 @@ export async function removeGateway(rt: GatewayRuntime): Promise<void> {
   await run(rt.bin, ['rm', '--force', rt.name], 30_000).catch(() => undefined);
 }
 
-/** Liveness from the host, which can reach the egress network directly. */
-export async function probeGatewayHealth(address: string, timeoutMs = 3_000): Promise<boolean> {
+/**
+ * Liveness, asked from inside the gateway container.
+ *
+ * Not an HTTP call from the host, though the host holds an address on the
+ * egress network: on macOS a host process reaching a container address is
+ * subject to Local Network privacy, and the service is not an app anyone has
+ * granted it to — `curl` from a permitted terminal succeeds while the same
+ * request from Node fails EHOSTUNREACH. Going through the runtime needs no
+ * such permission and asks the question that matters: is the service inside
+ * listening.
+ */
+export async function probeGatewayHealth(rt: GatewayRuntime, timeoutMs = 10_000): Promise<boolean> {
   try {
-    const response = await fetch(`http://${address}:${GATEWAY_PORT}/health/live`, {
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    return response.ok;
+    const out = await run(
+      rt.bin,
+      ['exec', rt.name, 'wget', '-qO-', `http://127.0.0.1:${GATEWAY_PORT}/health/live`],
+      timeoutMs,
+    );
+    return out.includes('ok');
   } catch {
     return false;
   }

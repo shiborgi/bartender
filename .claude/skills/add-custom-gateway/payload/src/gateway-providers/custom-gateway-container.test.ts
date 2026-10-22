@@ -20,7 +20,12 @@ vi.mock('../log.js', () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), fatal: vi.fn() },
 }));
 
-import { GatewayImageMissingError, ensureGatewayRunning, type GatewayRuntime } from './custom-gateway-container.js';
+import {
+  GatewayImageMissingError,
+  ensureGatewayRunning,
+  probeGatewayHealth,
+  type GatewayRuntime,
+} from './custom-gateway-container.js';
 
 const RT: GatewayRuntime = {
   bin: 'container',
@@ -52,5 +57,17 @@ describe('ensureGatewayRunning', () => {
     await ensureGatewayRunning(RT, 'secret').catch(() => undefined);
     expect(calls).toContainEqual(['rm', '--force', RT.name]);
     expect(calls.some((args) => args[0] === 'run' && args.includes(RT.image))).toBe(true);
+  });
+});
+
+describe('probeGatewayHealth', () => {
+  /*
+   * From the host, a request to a container address is subject to macOS Local
+   * Network privacy and fails EHOSTUNREACH from Node. The probe asks the
+   * container about itself through the runtime instead.
+   */
+  it('asks the gateway about itself through the runtime, never over the network', async () => {
+    await probeGatewayHealth(RT);
+    expect(calls).toEqual([['exec', RT.name, 'wget', '-qO-', 'http://127.0.0.1:8080/health/live']]);
   });
 });
