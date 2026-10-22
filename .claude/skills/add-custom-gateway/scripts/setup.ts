@@ -56,7 +56,10 @@ async function main(): Promise<void> {
 
   const rt = gatewayRuntime(root);
   console.log(`building ${rt.image} with ${rt.bin}`);
-  execFileSync(rt.bin, ['build', '-t', rt.image, path.join(SKILL_DIR, 'service')], { stdio: 'inherit' });
+  // The same runtime flags as the agent image build: on Apple Container a
+  // build without them resizes, and so recreates, the shared builder VM.
+  const options = envValue('CONTAINER_BUILD_OPTIONS', root)?.split(/\s+/).filter(Boolean) ?? [];
+  execFileSync(rt.bin, ['build', ...options, '-t', rt.image, path.join(SKILL_DIR, 'service')], { stdio: 'inherit' });
   await removeGateway(rt);
   console.log(`${rt.name} will start on the new image with the next session.`);
 }

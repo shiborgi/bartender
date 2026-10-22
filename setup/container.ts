@@ -261,8 +261,8 @@ export async function run(args: string[]): Promise<void> {
   const buildCmd = 'docker build';
   const runCmd = 'docker';
 
-  // Build settings from .env: INSTALL_CJK_FONTS, BUN_NETWORK_CONCURRENCY and
-  // CONTAINER_BUILD_OPTIONS (extra runtime flags, word-split).
+  // Build settings from .env: INSTALL_CJK_FONTS and CONTAINER_BUILD_OPTIONS
+  // (extra runtime flags, word-split).
   // Keeps /setup and ./container/build.sh in sync — both read the same source.
   const buildArgs: string[] = [];
   try {
@@ -276,10 +276,6 @@ export async function run(args: string[]): Promise<void> {
           .trim()
           .replace(/^["']|["']$/g, '');
       if (read('INSTALL_CJK_FONTS')?.toLowerCase() === 'true') buildArgs.push('--build-arg INSTALL_CJK_FONTS=true');
-      const concurrency = read('BUN_NETWORK_CONCURRENCY');
-      if (concurrency && /^[1-9]\d*$/.test(concurrency)) {
-        buildArgs.push(`--build-arg BUN_NETWORK_CONCURRENCY=${concurrency}`);
-      }
       buildArgs.push(...(read('CONTAINER_BUILD_OPTIONS')?.split(/\s+/).filter(Boolean) ?? []));
     }
   } catch {

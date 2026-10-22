@@ -9,7 +9,6 @@
 #
 # Reads optional build settings from ../.env:
 #   INSTALL_CJK_FONTS=true          — add Chinese/Japanese/Korean fonts (~200MB)
-#   BUN_NETWORK_CONCURRENCY=<n>     — cap parallel downloads in `bun install`
 #   CONTAINER_BUILD_OPTIONS="<...>" — extra flags for `<runtime> build`, e.g.
 #                                     the builder VM size on Apple Container
 # setup/container.ts reads the same file, so both build paths stay in sync.
@@ -147,16 +146,6 @@ if [ "${INSTALL_CJK_FONTS:-false}" = "true" ]; then
         echo "CJK fonts: enabled (adds ~200MB)"
         BUILD_ARGS+=(--build-arg INSTALL_CJK_FONTS=true)
     fi
-fi
-
-if [ -z "${BUN_NETWORK_CONCURRENCY:-}" ] && [ -f "../.env" ]; then
-    BUN_NETWORK_CONCURRENCY="$(grep '^BUN_NETWORK_CONCURRENCY=' ../.env | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
-fi
-if [ -n "${BUN_NETWORK_CONCURRENCY:-}" ]; then
-    case "$BUN_NETWORK_CONCURRENCY" in
-        *[!0-9]*|0) echo "BUN_NETWORK_CONCURRENCY must be a positive integer (got '$BUN_NETWORK_CONCURRENCY')" >&2; exit 1 ;;
-    esac
-    BUILD_ARGS+=(--build-arg "BUN_NETWORK_CONCURRENCY=$BUN_NETWORK_CONCURRENCY")
 fi
 
 if [ -z "${CONTAINER_BUILD_OPTIONS:-}" ] && [ -f "../.env" ]; then
