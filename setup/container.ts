@@ -261,19 +261,24 @@ export async function run(args: string[]): Promise<void> {
   const buildCmd = 'docker build';
   const runCmd = 'docker';
 
-  // Build-args from .env. Only INSTALL_CJK_FONTS is passed through today.
+  // Build-args from .env: INSTALL_CJK_FONTS and BUN_NETWORK_CONCURRENCY.
   // Keeps /setup and ./container/build.sh in sync — both read the same source.
   const buildArgs: string[] = [];
   try {
     const fs = await import('fs');
     const envPath = path.join(projectRoot, '.env');
     if (fs.existsSync(envPath)) {
-      const match = fs.readFileSync(envPath, 'utf-8').match(/^INSTALL_CJK_FONTS=(.+)$/m);
-      const val = match?.[1]
-        .trim()
-        .replace(/^["']|["']$/g, '')
-        .toLowerCase();
-      if (val === 'true') buildArgs.push('--build-arg INSTALL_CJK_FONTS=true');
+      const env = fs.readFileSync(envPath, 'utf-8');
+      const read = (key: string) =>
+        env
+          .match(new RegExp(`^${key}=(.+)$`, 'm'))?.[1]
+          .trim()
+          .replace(/^["']|["']$/g, '');
+      if (read('INSTALL_CJK_FONTS')?.toLowerCase() === 'true') buildArgs.push('--build-arg INSTALL_CJK_FONTS=true');
+      const concurrency = read('BUN_NETWORK_CONCURRENCY');
+      if (concurrency && /^[1-9]\d*$/.test(concurrency)) {
+        buildArgs.push(`--build-arg BUN_NETWORK_CONCURRENCY=${concurrency}`);
+      }
     }
   } catch {
     // .env is optional; absence is normal on a fresh checkout

@@ -83,8 +83,12 @@ WORKDIR /app
 
 COPY agent-runner/package.json agent-runner/bun.lock ./
 
+# Unset keeps bun's own default. A builder whose NAT stalls under many
+# parallel downloads (Apple Container's builder VM, at bun's default of 48)
+# hangs here with no output until the fetches time out as corrupt tarballs.
+ARG BUN_NETWORK_CONCURRENCY=
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    bun install --frozen-lockfile ${BUN_NETWORK_CONCURRENCY:+--network-concurrency "$BUN_NETWORK_CONCURRENCY"}
 
 # ---- pnpm + global Node CLIs -------------------------------------------------
 # Most stable first, most frequently bumped last. Bumping claude-code

@@ -7,10 +7,11 @@
 # registry and retags it to the same local tag this script builds — the one
 # thing the host ever looks at. See that script for the settings it reads.
 #
-# Reads one optional build flag from ../.env:
-#   INSTALL_CJK_FONTS=true   — add Chinese/Japanese/Korean fonts (~200MB)
+# Reads two optional build flags from ../.env:
+#   INSTALL_CJK_FONTS=true      — add Chinese/Japanese/Korean fonts (~200MB)
+#   BUN_NETWORK_CONCURRENCY=<n> — cap parallel downloads in `bun install`
 # setup/container.ts reads the same file, so both build paths stay in sync.
-# Callers can also override by exporting INSTALL_CJK_FONTS directly.
+# Callers can also override by exporting either variable directly.
 
 set -e
 
@@ -144,6 +145,16 @@ if [ "${INSTALL_CJK_FONTS:-false}" = "true" ]; then
         echo "CJK fonts: enabled (adds ~200MB)"
         BUILD_ARGS+=(--build-arg INSTALL_CJK_FONTS=true)
     fi
+fi
+
+if [ -z "${BUN_NETWORK_CONCURRENCY:-}" ] && [ -f "../.env" ]; then
+    BUN_NETWORK_CONCURRENCY="$(grep '^BUN_NETWORK_CONCURRENCY=' ../.env | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]')"
+fi
+if [ -n "${BUN_NETWORK_CONCURRENCY:-}" ]; then
+    case "$BUN_NETWORK_CONCURRENCY" in
+        *[!0-9]*|0) echo "BUN_NETWORK_CONCURRENCY must be a positive integer (got '$BUN_NETWORK_CONCURRENCY')" >&2; exit 1 ;;
+    esac
+    BUILD_ARGS+=(--build-arg "BUN_NETWORK_CONCURRENCY=$BUN_NETWORK_CONCURRENCY")
 fi
 
 if [ -n "$LOCK_SHA" ]; then
