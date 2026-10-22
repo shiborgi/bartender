@@ -274,6 +274,10 @@ describe('send_card', () => {
     const { pattern } = LINK_ACTION_SCHEMA.properties.url as { pattern: string };
 
     expect(pattern).not.toMatch(/\\[sStn]/);
+    // An unescaped '[' inside a class is a nested class to Rust's regex, which
+    // DeepSeek's API uses to validate tool schemas: it rejects the request.
+    const classes = pattern.replace(/\\./g, '').match(/\[[^\]]*\]/g) ?? [];
+    for (const cls of classes) expect(cls.slice(1)).not.toContain('[');
 
     const re = new RegExp(pattern);
     for (const url of ['https://example.com', 'http://a', 'https://x.io/p?q=1#f', 'HTTP://h:8080/~u']) {

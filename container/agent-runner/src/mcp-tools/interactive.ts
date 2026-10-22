@@ -74,10 +74,13 @@ export const LINK_ACTION_SCHEMA = Object.freeze({
     // that carries this tool. The classes also leave out '"' and '\\', which
     // the converter would otherwise copy into the JSON string rule. The first
     // host character excludes '#', '/' and '?'. Non-ASCII URLs are normalized
-    // with `new URL()` before validation (see normalizeLinkUrl).
+    // with `new URL()` before validation (see normalizeLinkUrl). The '[' that
+    // ends the '@-[' range is escaped: engines that read '[' inside a class as
+    // a nested class (Rust's regex, behind DeepSeek's API) reject the schema,
+    // and with it every request that carries this tool.
     url: {
       type: 'string' as const,
-      pattern: '^[hH][tT][tT][pP][sS]?://[!$-.0->@-[\\]-~][!#-[\\]-~]*$',
+      pattern: '^[hH][tT][tT][pP][sS]?://[!$-.0->@-\\[\\]-~][!#-\\[\\]-~]*$',
       description: "Web link (http or https), e.g. 'https://example.com'.",
     },
     style: {
