@@ -1,0 +1,6 @@
+{
+  "kind": "custom-gateway",
+  "label": "Custom gateway",
+  "description": "Run a small self-hosted gateway that holds every upstream credential, routes models by alias, and serves remote and Google MCP servers per agent group.",
+  "default": false
+}
