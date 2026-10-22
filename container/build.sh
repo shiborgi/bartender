@@ -58,6 +58,10 @@ while [ $# -gt 0 ]; do
 done
 
 TAG="${1:-latest}"
+# The caller's environment wins, then .env, then Docker. A service started by
+# launchd/systemd gets no .env in its environment, so an install that runs a
+# different runtime records it there and every build follows it.
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-$(grep '^CONTAINER_RUNTIME=' "$PROJECT_ROOT/.env" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d "\"' [:space:]")}"
 CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
 
 # No explicit subcommand, on an install that pulls its image. Skills that add a

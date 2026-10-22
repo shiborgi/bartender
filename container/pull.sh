@@ -41,7 +41,6 @@ source "$PROJECT_ROOT/setup/lib/install-slug.sh"
 IMAGE_NAME="$(container_image_base)"
 TAG="${1:-latest}"
 LOCAL_REF="${IMAGE_NAME}:${TAG}"
-CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
 
 # Caller's env takes precedence; fall back to .env.
 read_env_setting() {
@@ -50,6 +49,9 @@ read_env_setting() {
     fi
     grep "^$1=" "$PROJECT_ROOT/.env" | tail -n1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '[:space:]'
 }
+
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-$(read_env_setting CONTAINER_RUNTIME)}"
+CONTAINER_RUNTIME="${CONTAINER_RUNTIME:-docker}"
 
 # The committed pin, last in the precedence chain. setup/lib/version-pins.ts
 # reads the same file from the TypeScript side. versions.json is flat, one
