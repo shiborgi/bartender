@@ -2,7 +2,8 @@
 
 Switch the install back to Docker first, so the host never starts with a driver
 kind that is no longer registered: in `.env`, delete `NANOCLAW_RUNTIME_DRIVER`
-and `CONTAINER_RUNTIME` (or set them to `docker`), and stop the service.
+and `CONTAINER_RUNTIME` (or set them to `docker`) and `BUN_NETWORK_CONCURRENCY`,
+and stop the service.
 
 Stop every session this install started on Apple Container:
 

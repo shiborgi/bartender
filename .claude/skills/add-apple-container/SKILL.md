@@ -54,11 +54,15 @@ import './apple-container-conformance.js';
 ```
 
 Select it for this install. `CONTAINER_RUNTIME` makes image builds and pulls
-use the `container` binary as well:
+use the `container` binary as well. The builder VM's network stalls when
+`bun install` opens its default 48 parallel downloads — the build hangs silently
+for five minutes and then fails with `IntegrityCheckFailed` — so the agent
+image build caps it:
 
 ```nc:env-set
 NANOCLAW_RUNTIME_DRIVER=apple-container
 CONTAINER_RUNTIME=container
+BUN_NETWORK_CONCURRENCY=8
 ```
 
 The session network defaults to `nanoclaw-egress-v2-<install slug>`. Set
@@ -96,6 +100,8 @@ service so it selects the new driver. The startup log names it:
 - **`the runtime target "…" has no address on the network`** — the gateway
   container is not attached to the egress network. Restart the service so the
   gateway provider recreates it.
+- **Build hangs at `bun install`, then `IntegrityCheckFailed extracting
+  tarball`** — `BUN_NETWORK_CONCURRENCY` is missing from `.env`; set it to `8`.
 - **Build fails with `cannot allocate memory`** — the builder VM is undersized;
   run `scripts/ensure-builder.sh` again.
 - **Update and uninstall tooling** (`scripts/update/service.ts` container
