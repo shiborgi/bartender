@@ -7,11 +7,13 @@
 # registry and retags it to the same local tag this script builds — the one
 # thing the host ever looks at. See that script for the settings it reads.
 #
-# Reads two optional build flags from ../.env:
-#   INSTALL_CJK_FONTS=true      — add Chinese/Japanese/Korean fonts (~200MB)
-#   BUN_NETWORK_CONCURRENCY=<n> — cap parallel downloads in `bun install`
+# Reads optional build settings from ../.env:
+#   INSTALL_CJK_FONTS=true          — add Chinese/Japanese/Korean fonts (~200MB)
+#   BUN_NETWORK_CONCURRENCY=<n>     — cap parallel downloads in `bun install`
+#   CONTAINER_BUILD_OPTIONS="<...>" — extra flags for `<runtime> build`, e.g.
+#                                     the builder VM size on Apple Container
 # setup/container.ts reads the same file, so both build paths stay in sync.
-# Callers can also override by exporting either variable directly.
+# Callers can also override by exporting any of them directly.
 
 set -e
 
@@ -157,6 +159,14 @@ if [ -n "${BUN_NETWORK_CONCURRENCY:-}" ]; then
     BUILD_ARGS+=(--build-arg "BUN_NETWORK_CONCURRENCY=$BUN_NETWORK_CONCURRENCY")
 fi
 
+if [ -z "${CONTAINER_BUILD_OPTIONS:-}" ] && [ -f "../.env" ]; then
+    CONTAINER_BUILD_OPTIONS="$(grep '^CONTAINER_BUILD_OPTIONS=' ../.env | tail -n1 | cut -d= -f2- | sed -e "s/^[\"']//" -e "s/[\"']\$//")"
+fi
+# Word-split on purpose: it is a list of runtime flags. Apple Container sizes
+# its builder VM per build from these and resets it to the system default
+# when they are absent, so a one-off `container builder start` does not last.
+read -r -a RUNTIME_BUILD_OPTIONS <<< "${CONTAINER_BUILD_OPTIONS:-}"
+
 if [ -n "$LOCK_SHA" ]; then
     BUILD_ARGS+=(--build-arg "AGENT_RUNNER_LOCK_SHA256=$LOCK_SHA")
 fi
@@ -177,7 +187,7 @@ build_image() {
     while :; do
         # No pipefail in this script, so the pipeline's status is tee's and
         # `set -e` stays quiet; docker's own status is read from PIPESTATUS.
-        "${CONTAINER_RUNTIME}" build "$@" 2>&1 | tee "$log" >&2
+        "${CONTAINER_RUNTIME}" build ${RUNTIME_BUILD_OPTIONS[@]+"${RUNTIME_BUILD_OPTIONS[@]}"} "$@" 2>&1 | tee "$log" >&2
         status=${PIPESTATUS[0]}
         if [ "$status" -eq 0 ]; then
             rm -f "$log"

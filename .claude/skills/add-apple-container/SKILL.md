@@ -54,14 +54,19 @@ import './apple-container-conformance.js';
 ```
 
 Select it for this install. `CONTAINER_RUNTIME` makes image builds and pulls
-use the `container` binary as well. The builder VM's network stalls when
-`bun install` opens its default 48 parallel downloads — the build hangs silently
-for five minutes and then fails with `IntegrityCheckFailed` — so the agent
-image build caps it:
+use the `container` binary as well. Two build settings fit the builder VM:
+
+- `CONTAINER_BUILD_OPTIONS` sizes it. `container build` resizes the builder to
+  the system default (2 GB) on every build that does not pass `--cpus` and
+  `--memory`, and the agent image runs out of memory at 2 GB.
+- `BUN_NETWORK_CONCURRENCY` caps `bun install`. The builder's network stalls
+  under bun's default 48 parallel downloads: the build hangs silently for five
+  minutes, then fails with `IntegrityCheckFailed`.
 
 ```nc:env-set
 NANOCLAW_RUNTIME_DRIVER=apple-container
 CONTAINER_RUNTIME=container
+CONTAINER_BUILD_OPTIONS=--cpus 4 --memory 8192mb
 BUN_NETWORK_CONCURRENCY=8
 ```
 
@@ -76,13 +81,6 @@ pnpm run build
 
 ```nc:run effect:test
 pnpm exec vitest run src/drivers
-```
-
-The agent image is built by Apple Container's builder VM, whose default 2 GB is
-not enough for it. Raise it before the first build:
-
-```nc:run effect:external
-bash .claude/skills/add-apple-container/scripts/ensure-builder.sh
 ```
 
 Then build the agent image (`./container/build.sh build`) and restart the
@@ -102,8 +100,8 @@ service so it selects the new driver. The startup log names it:
   gateway provider recreates it.
 - **Build hangs at `bun install`, then `IntegrityCheckFailed extracting
   tarball`** — `BUN_NETWORK_CONCURRENCY` is missing from `.env`; set it to `8`.
-- **Build fails with `cannot allocate memory`** — the builder VM is undersized;
-  run `scripts/ensure-builder.sh` again.
+- **Build fails with `cannot allocate memory`** — `CONTAINER_BUILD_OPTIONS` is
+  missing from `.env`, so the build ran in a 2 GB builder.
 - **Update and uninstall tooling** (`scripts/update/service.ts` container
   drain, `setup/uninstall/scan.ts`) still speak Docker's CLI dialect; on this
   runtime, stop the service before an update instead of relying on the drain.
