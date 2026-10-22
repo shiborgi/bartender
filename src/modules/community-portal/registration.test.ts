@@ -17,8 +17,17 @@ it('the real modules barrel registers the portal connection with host start and 
   await import('../index.js');
   expect(runtime.start).not.toHaveBeenCalled();
   const signal = new AbortController().signal;
-  await lifecycle.getHostStartCallbacks().at(-1)!({ signal, db: {} as never, deliveryAdapter: {} as never });
+  // Skills append their modules to the barrel after the portal, so its
+  // callbacks are not necessarily the last ones: walk back to them, running
+  // only the later modules' callbacks on the way.
+  for (const start of [...lifecycle.getHostStartCallbacks()].reverse()) {
+    await start({ signal, db: {} as never, deliveryAdapter: {} as never });
+    if (runtime.start.mock.calls.length > 0) break;
+  }
   expect(runtime.start).toHaveBeenCalledWith({ signal, log: expect.any(Function) });
-  await lifecycle.getHostShutdownCallbacks().at(-1)!();
+  for (const shutdown of [...lifecycle.getHostShutdownCallbacks()].reverse()) {
+    await shutdown();
+    if (runtime.stop.mock.calls.length > 0) break;
+  }
   expect(runtime.stop).toHaveBeenCalledOnce();
 });
