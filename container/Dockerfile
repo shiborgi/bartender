@@ -83,8 +83,18 @@ WORKDIR /app
 
 COPY agent-runner/package.json agent-runner/bun.lock ./
 
+# One attempt by default. A builder whose network stalls downloads at random
+# (Apple Container 1.3) passes --build-arg BUN_INSTALL_ATTEMPTS=<n>: each
+# attempt is then bounded, and tarballs a stalled attempt did finish stay in
+# the cache mount for the next one. A healthy install takes seconds.
+ARG BUN_INSTALL_ATTEMPTS=1
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    if [ "$BUN_INSTALL_ATTEMPTS" -le 1 ]; then exec bun install --frozen-lockfile; fi; \
+    n=0; \
+    until n=$((n + 1)); timeout 120 bun install --frozen-lockfile; do \
+      [ "$n" -ge "$BUN_INSTALL_ATTEMPTS" ] && exit 1; \
+      echo "bun install stalled (attempt $n of $BUN_INSTALL_ATTEMPTS); retrying" >&2; \
+    done
 
 # ---- pnpm + global Node CLIs -------------------------------------------------
 # Most stable first, most frequently bumped last. Bumping claude-code

@@ -54,15 +54,22 @@ import './apple-container-conformance.js';
 ```
 
 Select it for this install. `CONTAINER_RUNTIME` makes image builds and pulls
-use the `container` binary as well. `CONTAINER_BUILD_OPTIONS` sizes the builder
-VM: `container build` resizes it to the system default (2 GB) on every build
-that does not pass `--cpus` and `--memory`, and the agent image runs out of
-memory at 2 GB.
+use the `container` binary as well. `CONTAINER_BUILD_OPTIONS` fits the builder
+VM:
+
+- `--cpus`/`--memory` size it. `container build` resizes it to the system
+  default (2 GB) on every build that does not pass them, and the agent image
+  runs out of memory at 2 GB.
+- `BUN_INSTALL_ATTEMPTS` retries the image's `bun install`. The builder's
+  network stalls downloads at random — the same install in a plain container
+  never does — and an unbounded install waits five minutes, then fails with
+  `IntegrityCheckFailed`. Bounded and retried, it typically clears within a
+  few minutes.
 
 ```nc:env-set
 NANOCLAW_RUNTIME_DRIVER=apple-container
 CONTAINER_RUNTIME=container
-CONTAINER_BUILD_OPTIONS=--cpus 4 --memory 8192mb
+CONTAINER_BUILD_OPTIONS=--cpus 4 --memory 8192mb --build-arg BUN_INSTALL_ATTEMPTS=6
 ```
 
 The session network defaults to `nanoclaw-egress-v2-<install slug>`. Set
@@ -93,11 +100,9 @@ service so it selects the new driver. The startup log names it:
 - **`the runtime target "…" has no address on the network`** — the gateway
   container is not attached to the egress network. Restart the service so the
   gateway provider recreates it.
-- **Build hangs at `bun install` for five minutes, then fails with
-  `IntegrityCheckFailed extracting tarball`** — Apple Container 1.3's builder
-  intermittently stalls large downloads (the agent SDK's 115 MB binaries); the
-  same install succeeds in a plain container. Run the build again; it succeeds
-  on a later attempt.
+- **`bun install stalled (attempt 6 of 6)`** — the builder's network did not
+  clear in time; run the build again. If it keeps happening, restart the
+  builder (`container builder stop`, then build again).
 - **Build context arrives empty** (`COPY` copies nothing, the image fails with
   `Module not found`) — the builder cannot read contexts under `/tmp` or
   `/private/tmp`. Keep the install under your home directory.
